@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Syntax check app.py
+        run: python -m py_compile app.py
+
+      - name: Python <-> JavaScript AI parity test
+        run: python tests/test_ai_parity.py
+
+      - name: Model training smoke test
+        run: python tests/test_build.py

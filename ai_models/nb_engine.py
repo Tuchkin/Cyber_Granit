@@ -1,0 +1,297 @@
+# -*- coding: utf-8 -*-
+"""
+Кибер-Гранит.ИИ — общий движок лёгких офлайн-моделей.
+
+Два алгоритма, оба реализованы "с нуля" на чистом Python (без sklearn/numpy),
+чтобы их было легко один-в-один портировать на JavaScript для автономной
+HTML-версии (Cyber_Granit.html) и использовать напрямую в Streamlit-версии
+(app.py). Никаких сетевых вызовов, никаких внешних API — все модели
+обучаются заранее (build_models.py) и грузятся из JSON-файлов.
+
+1) Наивный байесовский классификатор текста на символьных n-граммах слов
+   (устойчив к русской словоформе без стемминга/лемматизации).
+   Используется для:
+     - классификатора угроз в сообщениях (фишинг/вербовка/ИПсО/безопасно)
+     - скоринга риска OSINT-публикации (риск утечки / безопасно)
+
+2) Символьная n-граммная языковая модель (марковская цепь символов)
+   для оценки "типичности" пароля относительно корпуса известных слабых
+   паролей-паттернов — лёгкая, но настоящая статистическая ML-модель,
+   а не просто regex.
+"""
+import re
+import math
+from collections import Counter, defaultdict
+
+# ---------------------------------------------------------------------------
+# Токенизация
+# ---------------------------------------------------------------------------
+
+_WORD_RE = re.compile(r"[^0-9a-zа-яё\s]", re.IGNORECASE)
+
+
+def normalize(text):
+    text = (text or "").lower()
+    text = _WORD_RE.sub(" ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
+
+
+def word_tokens(text):
+    norm = normalize(text)
+    return [w for w in norm.split(" ") if w]
+
+
+def char_ngrams_of_word(word, n=3):
+    pad = "_" * (n - 1)
+    padded = pad + word + pad
+    if len(padded) < n:
+        return [padded]
+    return [padded[i:i + n] for i in range(len(padded) - n + 1)]
+
+
+def char_ngrams(text, n=3):
+    grams = []
+    for w in word_tokens(text):
+        grams.extend(char_ngrams_of_word(w, n))
+    return grams
+
+
+# ---------------------------------------------------------------------------
+# 1) Наивный байесовский классификатор (Multinomial NB, char n-grams)
+# ---------------------------------------------------------------------------
+
+def train_nb(examples, classes=None, n=3, alpha=0.5):
+    """examples: список (text, label)."""
+    if classes is None:
+        classes = sorted(set(lbl for _, lbl in examples))
+
+    class_docs = {c: [] for c in classes}
+    for text, lbl in examples:
+        if lbl in class_docs:
+            class_docs[lbl].append(text)
+
+    vocab_counts = {c: Counter() for c in classes}
+    for text, lbl in examples:
+        if lbl not in vocab_counts:
+            continue
+        vocab_counts[lbl].update(char_ngrams(text, n))
+
+    vocab = set()
+    for c in classes:
+        vocab.update(vocab_counts[c].keys())
+    vocab = sorted(vocab)
+    vocab_size = len(vocab)
+
+    total_docs = sum(len(v) for v in class_docs.values())
+    class_totals = {c: sum(vocab_counts[c].values()) for c in classes}
+
+    log_prior = {c: math.log(max(len(class_docs[c]), 1) / total_docs) for c in classes}
+
+    log_likelihood = {c: {} for c in classes}
+    for c in classes:
+        denom = class_totals[c] + alpha * vocab_size
+        for g, cnt in vocab_counts[c].items():
+            log_likelihood[c][g] = math.log((cnt + alpha) / denom)
+
+    default_log_likelihood = {
+        c: math.log(alpha / (class_totals[c] + alpha * vocab_size)) for c in classes
+    }
+
+    return {
+        "type": "nb_char_ngram",
+        "classes": classes,
+        "n": n,
+        "alpha": alpha,
+        "vocab_size": vocab_size,
+        "log_prior": log_prior,
+        "log_likelihood": log_likelihood,
+        "default_log_likelihood": default_log_likelihood,
+        "train_docs": total_docs,
+        "docs_per_class": {c: len(class_docs[c]) for c in classes},
+    }
+
+
+def predict_nb(model, text, top_words=4):
+    classes = model["classes"]
+    n = model["n"]
+    words = word_tokens(text)
+
+    scores = {c: model["log_prior"][c] for c in classes}
+    word_scores = {w: {c: 0.0 for c in classes} for w in set(words)}
+
+    for w in words:
+        grams = char_ngrams_of_word(w, n)
+        for c in classes:
+            ll = model["log_likelihood"][c]
+            default = model["default_log_likelihood"][c]
+            s = sum(ll.get(g, default) for g in grams)
+            scores[c] += s
+            word_scores[w][c] += s
+
+    m = max(scores.values())
+    exps = {c: math.exp(scores[c] - m) for c in classes}
+    z = sum(exps.values()) or 1.0
+    probs = {c: exps[c] / z for c in classes}
+
+    top_class = max(probs, key=probs.get)
+    other_classes = [c for c in classes if c != top_class] or [top_class]
+
+    contrib = []
+    for w in set(words):
+        c_top = word_scores[w][top_class]
+        c_other_avg = sum(word_scores[w][c] for c in other_classes) / len(other_classes)
+        contrib.append((w, c_top - c_other_avg))
+    contrib.sort(key=lambda x: -x[1])
+    top_features = [w for w, v in contrib if v > 0][:top_words]
+
+    return {"probs": probs, "top_class": top_class, "top_features": top_features}
+
+
+def evaluate_nb(model, examples, n=3):
+    classes = model["classes"]
+    confusion = {c: {c2: 0 for c2 in classes} for c in classes}
+    correct = 0
+    for text, true_label in examples:
+        pred = predict_nb(model, text)["top_class"]
+        confusion[true_label][pred] += 1
+        if pred == true_label:
+            correct += 1
+    accuracy = correct / len(examples) if examples else 0.0
+
+    per_class = {}
+    for c in classes:
+        tp = confusion[c][c]
+        fp = sum(confusion[c2][c] for c2 in classes if c2 != c)
+        fn = sum(confusion[c][c2] for c2 in classes if c2 != c)
+        precision = tp / (tp + fp) if (tp + fp) else 0.0
+        recall = tp / (tp + fn) if (tp + fn) else 0.0
+        f1 = 2 * precision * recall / (precision + recall) if (precision + recall) else 0.0
+        per_class[c] = {"precision": precision, "recall": recall, "f1": f1}
+
+    return {"accuracy": accuracy, "confusion": confusion, "per_class": per_class}
+
+
+# ---------------------------------------------------------------------------
+# 2) Символьная n-граммная языковая модель (для паролей)
+# ---------------------------------------------------------------------------
+
+def train_char_lm(corpus_words, order=3, alpha=0.5):
+    context_counts = defaultdict(Counter)
+    for w in corpus_words:
+        w = w.lower()
+        padded = ("_" * order) + w + "_"
+        for i in range(len(padded) - order):
+            ctx = padded[i:i + order]
+            nxt = padded[i + order]
+            context_counts[ctx][nxt] += 1
+
+    alphabet = set()
+    for counter in context_counts.values():
+        alphabet.update(counter.keys())
+    alphabet = sorted(alphabet)
+    V = max(len(alphabet), 1)
+
+    log_prob = {}
+    context_totals = {}
+    for ctx, counter in context_counts.items():
+        total = sum(counter.values())
+        context_totals[ctx] = total
+        log_prob[ctx] = {ch: math.log((cnt + alpha) / (total + alpha * V)) for ch, cnt in counter.items()}
+
+    default_lp_known_ctx = {
+        ctx: math.log(alpha / (context_totals[ctx] + alpha * V)) for ctx in context_counts
+    }
+    global_default = math.log(alpha / (alpha * V))
+
+    return {
+        "type": "char_lm",
+        "order": order,
+        "alpha": alpha,
+        "vocab_size": V,
+        "log_prob": log_prob,
+        "default_lp_known_ctx": default_lp_known_ctx,
+        "global_default": global_default,
+    }
+
+
+def score_password_lm_raw(model, password):
+    order = model["order"]
+    padded = ("_" * order) + (password or "").lower() + "_"
+    total_lp = 0.0
+    count = 0
+    for i in range(len(padded) - order):
+        ctx = padded[i:i + order]
+        nxt = padded[i + order]
+        ctx_probs = model["log_prob"].get(ctx)
+        if ctx_probs is not None and nxt in ctx_probs:
+            lp = ctx_probs[nxt]
+        elif ctx in model["default_lp_known_ctx"]:
+            lp = model["default_lp_known_ctx"][ctx]
+        else:
+            lp = model["global_default"]
+        total_lp += lp
+        count += 1
+    return total_lp / count if count else model["global_default"]
+
+
+def score_password_predictability(model, password):
+    """0..100: чем выше — тем пароль ближе к типичным слабым паттернам."""
+    if not password:
+        return 0.0
+    avg_lp = score_password_lm_raw(model, password)
+    lo = model["calibration"]["min_lp"]
+    hi = model["calibration"]["max_lp"]
+    if hi - lo < 1e-9:
+        return 0.0
+    pct = (avg_lp - lo) / (hi - lo)
+    pct = max(0.0, min(1.0, pct))
+    return round(pct * 100, 1)
+
+
+# ---------------------------------------------------------------------------
+# 3) ИИ-консультант: TF-IDF + косинусное сходство по базе знаний
+# ---------------------------------------------------------------------------
+
+def build_tfidf(kb):
+    """kb: список dict с ключами 'q' и 'a'."""
+    docs = [word_tokens(item["q"] + " " + item["q"] + " " + item["a"]) for item in kb]
+    df = Counter()
+    for tokens in docs:
+        df.update(set(tokens))
+    n_docs = len(docs)
+    idf = {t: math.log((n_docs + 1) / (c + 1)) + 1 for t, c in df.items()}
+    vectors = []
+    for tokens in docs:
+        tf = Counter(tokens)
+        vectors.append({t: cnt * idf.get(t, 0.0) for t, cnt in tf.items()})
+    return {"idf": idf, "vectors": vectors}
+
+
+def _cosine(vec_a, vec_b):
+    dot = sum(v * vec_b.get(k, 0.0) for k, v in vec_a.items())
+    na = math.sqrt(sum(v * v for v in vec_a.values()))
+    nb = math.sqrt(sum(v * v for v in vec_b.values()))
+    if na == 0 or nb == 0:
+        return 0.0
+    return dot / (na * nb)
+
+
+def chat_answer(kb, index, question, threshold=0.12):
+    tokens = word_tokens(question)
+    tf = Counter(tokens)
+    q_vec = {t: cnt * index["idf"].get(t, 0.0) for t, cnt in tf.items()}
+
+    best_i, best_score = -1, 0.0
+    for i, vec in enumerate(index["vectors"]):
+        score = _cosine(q_vec, vec)
+        if score > best_score:
+            best_score, best_i = score, i
+
+    if best_i == -1 or best_score < threshold:
+        return {
+            "matched": False,
+            "text": "Пока не нашёл точного ответа в базе знаний портала. Попробуйте "
+                    "переформулировать вопрос или посмотрите соответствующий раздел в меню слева.",
+        }
+    return {"matched": True, "q": kb[best_i]["q"], "text": kb[best_i]["a"], "score": best_score}
