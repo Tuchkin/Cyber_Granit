@@ -56,10 +56,26 @@ def build_message_classifier(report_lines):
 
     metrics = eng.evaluate_nb(model, test)
 
-    report_lines.append("## 1. Классификатор угроз в сообщениях (message_classifier)\n")
-    report_lines.append(f"- Алгоритм: наивный байесовский классификатор на символьных 3-граммах слов (Laplace-сглаживание, α=0.5)\n")
+    t1 = time.time()
+    logreg_model = eng.train_logreg(train, classes=model["classes"], n=3, epochs=300, lr=0.5, l2=0.002)
+    logreg_train_time = time.time() - t1
+    logreg_metrics = eng.evaluate_logreg(logreg_model, test)
+
+    ensemble_correct = 0
+    agree_count = 0
+    for text, true_label in test:
+        res = eng.predict_ensemble(model, logreg_model, text)
+        if res["top_class"] == true_label:
+            ensemble_correct += 1
+        if res["agree"]:
+            agree_count += 1
+    ensemble_accuracy = ensemble_correct / len(test) if test else 0.0
+
+    report_lines.append("## 1. Классификатор угроз в сообщениях (message_classifier) — ансамбль из 2 моделей\n")
     report_lines.append(f"- Классы: {', '.join(model['classes'])}\n")
-    report_lines.append(f"- Размер датасета: {len(data)} примеров ({len(train)} train / {len(test)} test, 80/20)\n")
+    report_lines.append(f"- Размер датасета: {len(data)} примеров ({len(train)} train / {len(test)} test, 80/20)\n\n")
+
+    report_lines.append("**Модель A — наивный байесовский классификатор** на символьных 3-граммах слов (Laplace-сглаживание, α=0.5):\n")
     report_lines.append(f"- Размер словаря n-грамм: {model['vocab_size']}\n")
     report_lines.append(f"- Время обучения: {train_time*1000:.1f} мс\n")
     report_lines.append(f"- **Accuracy на отложенной выборке: {fmt_pct(metrics['accuracy'])}**\n")
@@ -69,21 +85,31 @@ def build_message_classifier(report_lines):
         report_lines.append(f"| {c} | {fmt_pct(pc['precision'])} | {fmt_pct(pc['recall'])} | {fmt_pct(pc['f1'])} |\n")
     report_lines.append("\n")
 
+    report_lines.append("**Модель B — многоклассовая логистическая регрессия (softmax)** на тех же символьных 3-граммах, "
+                         "обучена батч-градиентным спуском (дискриминативный алгоритм, принципиально иной от наивного байеса):\n")
+    report_lines.append(f"- Размер словаря n-грамм: {len(logreg_model['vocab'])}, эпох обучения: {logreg_model['epochs']}\n")
+    report_lines.append(f"- Время обучения: {logreg_train_time*1000:.1f} мс\n")
+    report_lines.append(f"- **Accuracy на отложенной выборке: {fmt_pct(logreg_metrics['accuracy'])}**\n\n")
+
+    report_lines.append(f"**Ансамбль (среднее вероятностей A и B): accuracy {fmt_pct(ensemble_accuracy)}, "
+                         f"модели согласны в {fmt_pct(agree_count/len(test) if test else 0)} случаев на тестовой выборке.**\n\n")
+
     demo_texts = [
         "Боец, срочно перейди по ссылке и введи пароль для подтверждения",
         "Заплачу 200 рублей, если сфотографируешь КПП и пришлешь координаты",
         "СРОЧНО!!! Всех расформировывают!!! РЕПОСТ пока не удалили!!!",
         "Расписание тренировок на среду без изменений, начало в 17:00",
     ]
-    report_lines.append("Примеры работы модели:\n\n")
+    report_lines.append("Примеры работы ансамбля:\n\n")
     for t in demo_texts:
-        pred = eng.predict_nb(model, t)
-        top = pred["top_class"]
-        p = pred["probs"][top]
-        report_lines.append(f"- «{t}» → **{top}** ({fmt_pct(p)}), ключевые слова: {', '.join(pred['top_features']) or '—'}\n")
+        res = eng.predict_ensemble(model, logreg_model, t)
+        top = res["top_class"]
+        p = res["probs"][top]
+        agree = "совпадают" if res["agree"] else f"РАСХОДЯТСЯ (NB={res['nb']['top_class']}, LogReg={res['logreg']['top_class']})"
+        report_lines.append(f"- «{t}» → **{top}** ({fmt_pct(p)}), модели {agree}\n")
     report_lines.append("\n")
 
-    return model, metrics
+    return model, metrics, logreg_model
 
 
 def build_osint_classifier(report_lines):
@@ -95,19 +121,20 @@ def build_osint_classifier(report_lines):
 
     metrics = eng.evaluate_nb(model, test)
 
-    report_lines.append("## 2. Скоринг риска OSINT-публикации (osint_risk_classifier)\n")
-    report_lines.append("- Алгоритм: тот же наивный байесовский классификатор на символьных 3-граммах\n")
-    report_lines.append(f"- Классы: {', '.join(model['classes'])}\n")
-    report_lines.append(f"- Размер датасета: {len(data)} примеров ({len(train)} train / {len(test)} test)\n")
-    report_lines.append(f"- Время обучения: {train_time*1000:.1f} мс\n")
-    report_lines.append(f"- **Accuracy на отложенной выборке: {fmt_pct(metrics['accuracy'])}**\n")
-    report_lines.append("\n| Класс | Precision | Recall | F1 |\n|---|---|---|---|\n")
-    for c in model["classes"]:
-        pc = metrics["per_class"][c]
-        report_lines.append(f"| {c} | {fmt_pct(pc['precision'])} | {fmt_pct(pc['recall'])} | {fmt_pct(pc['f1'])} |\n")
-    report_lines.append("\n")
+    t1 = time.time()
+    logreg_model = eng.train_logreg(train, classes=model["classes"], n=3, epochs=300, lr=0.5, l2=0.002)
+    logreg_train_time = time.time() - t1
+    logreg_metrics = eng.evaluate_logreg(logreg_model, test)
 
-    return model, metrics
+    report_lines.append("## 2. Скоринг риска OSINT-публикации (osint_risk_classifier) — ансамбль из 2 моделей\n")
+    report_lines.append(f"- Классы: {', '.join(model['classes'])}\n")
+    report_lines.append(f"- Размер датасета: {len(data)} примеров ({len(train)} train / {len(test)} test)\n\n")
+    report_lines.append(f"- Модель A (наивный байес): время обучения {train_time*1000:.1f} мс, "
+                         f"**accuracy {fmt_pct(metrics['accuracy'])}**\n")
+    report_lines.append(f"- Модель B (логистическая регрессия): время обучения {logreg_train_time*1000:.1f} мс, "
+                         f"**accuracy {fmt_pct(logreg_metrics['accuracy'])}**\n\n")
+
+    return model, metrics, logreg_model
 
 
 def build_password_model(report_lines):
@@ -154,14 +181,18 @@ def main():
                    "(чистый Python: `re`, `math`, `collections`), на синтетическом учебном датасете "
                    "(см. `datasets.py`). Это гарантирует полную автономность конечного продукта.\n\n")
 
-    msg_model, msg_metrics = build_message_classifier(report)
-    osint_model, osint_metrics = build_osint_classifier(report)
+    msg_model, msg_metrics, msg_logreg = build_message_classifier(report)
+    osint_model, osint_metrics, osint_logreg = build_osint_classifier(report)
     pwd_model = build_password_model(report)
 
     with open(os.path.join(out_dir, "message_classifier.json"), "w", encoding="utf-8") as f:
         json.dump(msg_model, f, ensure_ascii=False)
+    with open(os.path.join(out_dir, "message_classifier_logreg.json"), "w", encoding="utf-8") as f:
+        json.dump(msg_logreg, f, ensure_ascii=False)
     with open(os.path.join(out_dir, "osint_risk_classifier.json"), "w", encoding="utf-8") as f:
         json.dump(osint_model, f, ensure_ascii=False)
+    with open(os.path.join(out_dir, "osint_risk_classifier_logreg.json"), "w", encoding="utf-8") as f:
+        json.dump(osint_logreg, f, ensure_ascii=False)
     with open(os.path.join(out_dir, "password_ngram.json"), "w", encoding="utf-8") as f:
         json.dump(pwd_model, f, ensure_ascii=False)
 
@@ -169,13 +200,13 @@ def main():
         f.writelines(report)
 
     print("Готово. Файлы сохранены в", out_dir)
-    print(" - message_classifier.json")
-    print(" - osint_risk_classifier.json")
+    print(" - message_classifier.json (+ _logreg.json)")
+    print(" - osint_risk_classifier.json (+ _logreg.json)")
     print(" - password_ngram.json")
     print(" - MODEL_CARD.md")
     print()
-    print(f"message_classifier accuracy: {fmt_pct(msg_metrics['accuracy'])}")
-    print(f"osint_risk_classifier accuracy: {fmt_pct(osint_metrics['accuracy'])}")
+    print(f"message_classifier (NB) accuracy: {fmt_pct(msg_metrics['accuracy'])}")
+    print(f"osint_risk_classifier (NB) accuracy: {fmt_pct(osint_metrics['accuracy'])}")
 
 
 if __name__ == "__main__":

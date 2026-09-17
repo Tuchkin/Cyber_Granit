@@ -26,16 +26,20 @@ try:
 
     @st.cache_resource
     def load_ai_models():
-        with open(os.path.join(AI_MODELS_DIR, "message_classifier.json"), encoding="utf-8") as f:
-            msg_model = json.load(f)
-        with open(os.path.join(AI_MODELS_DIR, "osint_risk_classifier.json"), encoding="utf-8") as f:
-            osint_model = json.load(f)
-        with open(os.path.join(AI_MODELS_DIR, "password_ngram.json"), encoding="utf-8") as f:
-            pwd_model = json.load(f)
-        chat_index = ai_engine.build_tfidf(AI_CHAT_KB)
-        return msg_model, osint_model, pwd_model, chat_index
+        def _load(name):
+            with open(os.path.join(AI_MODELS_DIR, name), encoding="utf-8") as f:
+                return json.load(f)
 
-    AI_MSG_MODEL, AI_OSINT_MODEL, AI_PWD_MODEL, AI_CHAT_INDEX = load_ai_models()
+        msg_model = _load("message_classifier.json")
+        msg_logreg = _load("message_classifier_logreg.json")
+        osint_model = _load("osint_risk_classifier.json")
+        osint_logreg = _load("osint_risk_classifier_logreg.json")
+        pwd_model = _load("password_ngram.json")
+        chat_index = ai_engine.build_tfidf(AI_CHAT_KB)
+        return msg_model, msg_logreg, osint_model, osint_logreg, pwd_model, chat_index
+
+    (AI_MSG_MODEL, AI_MSG_LOGREG_MODEL, AI_OSINT_MODEL, AI_OSINT_LOGREG_MODEL,
+     AI_PWD_MODEL, AI_CHAT_INDEX) = load_ai_models()
     AI_AVAILABLE = True
 except Exception as ai_load_error:  # модели не обучены (build_models.py ещё не запускался) — не роняем портал
     AI_AVAILABLE = False
@@ -53,8 +57,20 @@ AI_OSINT_LABELS = {
 }
 
 
+def _ai_render_agreement(res, labels):
+    nb_label = labels.get(res["nb"]["top_class"], res["nb"]["top_class"])
+    lr_label = labels.get(res["logreg"]["top_class"], res["logreg"]["top_class"])
+    if res["agree"]:
+        st.caption(f"🤝 Две независимые модели (наивный байес и логистическая регрессия) согласны: **{nb_label}**.")
+    else:
+        st.caption(
+            f"⚠️ Модели разошлись во мнении: наивный байес → **{nb_label}**, "
+            f"логистическая регрессия → **{lr_label}**. Итоговый вердикт — среднее вероятностей обеих."
+        )
+
+
 def ai_render_message_result(text):
-    res = ai_engine.predict_nb(AI_MSG_MODEL, text)
+    res = ai_engine.predict_ensemble(AI_MSG_MODEL, AI_MSG_LOGREG_MODEL, text)
     top = res["top_class"]
     conf = round(res["probs"][top] * 100, 1)
     if top == "safe":
@@ -65,10 +81,11 @@ def ai_render_message_result(text):
         st.progress(res["probs"][c], text=f"{AI_MSG_LABELS[c]}: {round(res['probs'][c]*100,1)}%")
     if res["top_features"]:
         st.caption("Слова, повлиявшие на решение ИИ: " + ", ".join(res["top_features"]))
+    _ai_render_agreement(res, AI_MSG_LABELS)
 
 
 def ai_render_osint_result(text):
-    res = ai_engine.predict_nb(AI_OSINT_MODEL, text)
+    res = ai_engine.predict_ensemble(AI_OSINT_MODEL, AI_OSINT_LOGREG_MODEL, text)
     top = res["top_class"]
     if top == "safe":
         st.success("✅ ИИ не выявил признаков оперативной утечки в описании.")
@@ -79,6 +96,7 @@ def ai_render_osint_result(text):
         st.progress(res["probs"][c], text=f"{AI_OSINT_LABELS[c]}: {round(res['probs'][c]*100,1)}%")
     if res["top_features"]:
         st.caption("На это обратил внимание ИИ: " + ", ".join(res["top_features"]))
+    _ai_render_agreement(res, AI_OSINT_LABELS)
 
 # --- НАСТРОЙКИ СТРАНИЦЫ И СТИЛИ ---
 st.set_page_config(page_title="Кибер-Гранит | ВПК", page_icon="🛡️", layout="wide")
@@ -151,7 +169,7 @@ if st.session_state.current_page != page:
 
 # Принудительный скролл наверх (100% рабочий метод для Streamlit)
 components.html(
-    "<script>window.parent.document.querySelector('.main').scrollTo(0,0);</script>",
+    "<script>var m = window.parent.document.querySelector('.main'); if (m) { m.scrollTo(0,0); }</script>",
     height=0
 )
 
@@ -327,7 +345,49 @@ def page_osint():
     """)
     
     st.info("🛠️ **Как защититься:** Зайди в настройки камеры своего телефона и **ОТКЛЮЧИ сохранение геопозиции (тегов местоположения)** для фото и видео.")
-    
+
+    st.markdown("---")
+    st.header("🔬 Проверь своё фото на геометки прямо сейчас")
+    st.write("Это не ИИ, а честный разбор EXIF-метаданных файла — тот же принцип, которым пользуются настоящие OSINT-аналитики. Файл обрабатывается локально на этом же компьютере и никуда не отправляется в интернет.")
+    exif_file = st.file_uploader("Выбери JPEG-файл:", type=["jpg", "jpeg"], key="exif_uploader")
+    if exif_file is not None:
+        try:
+            from PIL import Image
+            img = Image.open(exif_file)
+            exif = img.getexif()
+            if not exif:
+                st.success("✅ В файле не найдено EXIF-метаданных (либо они уже были удалены — это правильная практика перед публикацией).")
+            else:
+                gps_ifd = exif.get_ifd(0x8825)
+                make = exif.get(0x010F)
+                model = exif.get(0x0110)
+                date_time = exif.get(0x0132)
+
+                if gps_ifd and 2 in gps_ifd and 4 in gps_ifd:
+                    def _dms_to_decimal(dms, ref):
+                        deg, minu, sec = dms
+                        dec = float(deg) + float(minu) / 60 + float(sec) / 3600
+                        return -dec if ref in ("S", "W") else dec
+
+                    lat = _dms_to_decimal(gps_ifd[2], gps_ifd.get(1, "N"))
+                    lon = _dms_to_decimal(gps_ifd[4], gps_ifd.get(3, "E"))
+                    st.error(f"🚨 В файле зашиты GPS-координаты места съёмки: **{lat:.6f}, {lon:.6f}**. "
+                             f"Именно так злоумышленник может определить точное расположение объекта на фото, "
+                             f"даже если геометка не видна на самом изображении.")
+                    st.caption(f"Ссылка для проверки (нужен интернет): https://www.google.com/maps?q={lat:.6f},{lon:.6f}")
+                else:
+                    st.success("✅ GPS-координаты в файле не найдены.")
+
+                meta = []
+                if make or model:
+                    meta.append(f"камера/устройство: {(make or '')} {(model or '')}".strip())
+                if date_time:
+                    meta.append(f"дата съёмки: {date_time}")
+                if meta:
+                    st.info("ℹ️ Дополнительно в метаданных: " + "; ".join(meta) + ".")
+        except Exception as e:
+            st.warning(f"Не удалось разобрать файл: {e}")
+
     st.header("🔒 3. Базовая настройка Telegram")
     st.write("Твой Telegram должен быть крепостью. Зайди в Настройки -> Конфиденциальность и установи:")
     st.write("✅ **Номер телефона:** Кто видит - Никто. Кто может найти по номеру - Мои контакты.")
@@ -862,12 +922,49 @@ def page_polygon():
             elif st.session_state.quest_feedback_type == 'success': st.success(st.session_state.quest_feedback)
 
         if st.session_state.quest_stage_completed:
-            if st.button("Завершить операцию и получить оценку 🏁", key="next_6"):
+            if st.button("Продолжить операцию ➡️", key="next_6"):
                 next_stage(7)
                 st.rerun()
 
-    # Stage 7: Results
+    # Stage 7: AI Voice Deepfake
     elif st.session_state.quest_stage == 7:
+        st.subheader("Этап 7: ИИ-подделка голоса (дипфейк)")
+        st.write("Тебе звонит человек с незнакомого номера. Голос — один в один командир: та же интонация, та же манера речи.")
+        st.info("*«Боец, это я, разговор голосом. Срочно, без вопросов — продиктуй мне пароль от общего чата отряда, нужно разослать важный приказ, а я не могу зайти со своего телефона!»*")
+
+        if AI_AVAILABLE and st.button("🤖 Запросить ИИ-анализ сообщения", key="ai_hint_7"):
+            ai_render_message_result(
+                "Боец, это я, срочно, без вопросов, продиктуй мне пароль от общего чата отряда, нужно "
+                "разослать важный приказ, а я не могу зайти со своего телефона."
+            )
+
+        if not st.session_state.quest_stage_completed:
+            st.write("**Голос звучит абсолютно достоверно. Твои действия?**")
+            if st.button("🎙️ Сразу продиктовать: голос точно командира, я его узнаю", key="q7_1"):
+                st.session_state.quest_mistakes += 1
+                set_feedback("💥 КРИТИЧЕСКАЯ ОШИБКА! Современные нейросети клонируют голос человека по 10–15 секундам записи из открытого видео или сторис. Голос — больше не доказательство личности, даже когда «звучит один в один».", "error", False)
+                st.rerun()
+            if st.button("🤔 Остаться на линии и попытаться проверить его вопросами о делах отряда", key="q7_2"):
+                st.session_state.quest_mistakes += 1
+                set_feedback("⚠️ РИСКОВАННО. Подготовленный злоумышленник (или ИИ в реальном времени) может знать общедоступные детали и потянуть время, пока вы теряете бдительность. Разговор по этому каналу ненадёжен в принципе.", "warning", False)
+                st.rerun()
+            if st.button("📵 Вежливо сказать, что перезвонишь, положить трубку и связаться с командиром по уже сохранённому номеру", key="q7_3"):
+                set_feedback("✅ ВЕРНО! Единственная надёжная проверка при подозрении на голосовой дипфейк — независимый канал связи: перезвонить по заранее известному номеру, написать в проверенный чат или уточнить лично. Атака отбита.", "success", True)
+                st.rerun()
+
+        if st.session_state.quest_feedback:
+            st.markdown("---")
+            if st.session_state.quest_feedback_type == 'error': st.error(st.session_state.quest_feedback)
+            elif st.session_state.quest_feedback_type == 'warning': st.warning(st.session_state.quest_feedback)
+            elif st.session_state.quest_feedback_type == 'success': st.success(st.session_state.quest_feedback)
+
+        if st.session_state.quest_stage_completed:
+            if st.button("Завершить операцию и получить оценку 🏁", key="next_7"):
+                next_stage(8)
+                st.rerun()
+
+    # Stage 8: Results
+    elif st.session_state.quest_stage == 8:
         st.header("🏁 ОПЕРАЦИЯ ЗАВЕРШЕНА")
         mistakes = st.session_state.quest_mistakes
         
@@ -981,7 +1078,7 @@ def page_ai():
 
     st.markdown("""
     <div class="info-box">
-    На портале работают три собственные ИИ-модели, обученные заранее и полностью автономные — <b>без единого обращения к интернету или внешним серверам</b>: классификатор угроз в сообщениях (наивный байесовский классификатор на символьных n-граммах, точность на отложенной тестовой выборке 98%), скоринг риска OSINT-публикаций (100%) и символьная n-граммная языковая модель для оценки предсказуемости паролей. Методика обучения, датасеты и метрики — в файле <code>ai_models/MODEL_CARD.md</code>.
+    На портале работают пять собственных ИИ-моделей, обученных заранее и полностью автономных — <b>без единого обращения к интернету или внешним серверам</b>: классификатор угроз в сообщениях — ансамбль из 2 независимых алгоритмов (наивный байес + логистическая регрессия, точность на отложенной тестовой выборке 98%), скоринг риска OSINT-публикаций — тоже ансамбль из 2 моделей (100%), и символьная n-граммная языковая модель для оценки предсказуемости паролей. Методика обучения, датасеты и метрики — в файле <code>ai_models/MODEL_CARD.md</code>.
     </div>
     """, unsafe_allow_html=True)
 
@@ -1042,8 +1139,8 @@ def page_ai():
     st.header("⚙️ Как это устроено (прозрачность ИИ)")
     col1, col2 = st.columns(2)
     with col1:
-        st.subheader("Классификатор угроз и OSINT-риска")
-        st.write("Наивный байесовский классификатор на символьных триграммах слов — устойчив к русским словоформам без стемминга и словарей. Обучен на 230+ размеченных примерах (сообщения) и 100+ примерах (OSINT-описания). Реализован «с нуля» на чистом Python, без сторонних ML-библиотек.")
+        st.subheader("Классификатор угроз и OSINT-риска — ансамбль из 2 моделей")
+        st.write("**Модель A:** наивный байесовский классификатор на символьных триграммах слов. **Модель B:** многоклассовая логистическая регрессия (softmax), обученная градиентным спуском на тех же признаках — принципиально иной, дискриминативный алгоритм. Итоговый вердикт — среднее вероятностей обеих моделей; расхождение мнений честно показывается пользователю. Обучены на 250+ примерах (сообщения) и 100+ примерах (OSINT), реализованы «с нуля» на чистом Python, без сторонних ML-библиотек.")
     with col2:
         st.subheader("AI-модель паролей")
         st.write("Символьная n-граммная языковая модель (марковская цепь 3-го порядка), обученная на корпусе типовых слабых паролей-паттернов. Оценивает статистическое сходство пароля с распространёнными шаблонами.")

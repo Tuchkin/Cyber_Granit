@@ -173,6 +173,124 @@ def evaluate_nb(model, examples, n=3):
 
 
 # ---------------------------------------------------------------------------
+# 1b) Многоклассовая логистическая регрессия (softmax) на тех же признаках —
+#     второй, принципиально иной алгоритм (дискриминативный, не байесовский),
+#     обученный градиентным спуском по разреженным признакам. Используется
+#     как независимая вторая модель для ансамбля с наивным байесом.
+# ---------------------------------------------------------------------------
+
+def train_logreg(examples, classes=None, n=3, epochs=300, lr=0.5, l2=0.002):
+    if classes is None:
+        classes = sorted(set(lbl for _, lbl in examples))
+    class_idx = {c: i for i, c in enumerate(classes)}
+    C = len(classes)
+
+    vocab = {}
+    sparse_docs = []
+    for text, lbl in examples:
+        if lbl not in class_idx:
+            continue
+        counts = Counter(char_ngrams(text, n))
+        feats = {}
+        for g, cnt in counts.items():
+            if g not in vocab:
+                vocab[g] = len(vocab)
+            feats[vocab[g]] = cnt
+        sparse_docs.append((feats, class_idx[lbl]))
+
+    V = len(vocab)
+    W = [[0.0] * V for _ in range(C)]
+    b = [0.0] * C
+    N = len(sparse_docs) or 1
+
+    for _ in range(epochs):
+        grad_W = [dict() for _ in range(C)]
+        grad_b = [0.0] * C
+        for feats, y in sparse_docs:
+            scores = [b[c] + sum(W[c][idx] * val for idx, val in feats.items()) for c in range(C)]
+            m = max(scores)
+            exps = [math.exp(s - m) for s in scores]
+            z = sum(exps) or 1.0
+            probs = [e / z for e in exps]
+            for c in range(C):
+                diff = probs[c] - (1.0 if c == y else 0.0)
+                if diff == 0.0:
+                    continue
+                grad_b[c] += diff
+                gW = grad_W[c]
+                for idx, val in feats.items():
+                    gW[idx] = gW.get(idx, 0.0) + diff * val
+        for c in range(C):
+            b[c] -= lr * grad_b[c] / N
+            Wc = W[c]
+            for idx, g in grad_W[c].items():
+                Wc[idx] -= lr * (g / N + l2 * Wc[idx])
+
+    return {
+        "type": "logreg_char_ngram",
+        "classes": classes,
+        "n": n,
+        "vocab": vocab,
+        "weights": W,
+        "bias": b,
+        "epochs": epochs,
+        "lr": lr,
+        "l2": l2,
+    }
+
+
+def predict_logreg(model, text):
+    classes = model["classes"]
+    C = len(classes)
+    counts = Counter(char_ngrams(text, model["n"]))
+    vocab = model["vocab"]
+    feats = {}
+    for g, cnt in counts.items():
+        idx = vocab.get(g)
+        if idx is not None:
+            feats[idx] = feats.get(idx, 0) + cnt
+
+    scores = [model["bias"][c] + sum(model["weights"][c][idx] * val for idx, val in feats.items()) for c in range(C)]
+    m = max(scores)
+    exps = [math.exp(s - m) for s in scores]
+    z = sum(exps) or 1.0
+    probs = {classes[c]: exps[c] / z for c in range(C)}
+    top_class = max(probs, key=probs.get)
+    return {"probs": probs, "top_class": top_class}
+
+
+def evaluate_logreg(model, examples):
+    classes = model["classes"]
+    confusion = {c: {c2: 0 for c2 in classes} for c in classes}
+    correct = 0
+    for text, true_label in examples:
+        pred = predict_logreg(model, text)["top_class"]
+        confusion[true_label][pred] += 1
+        if pred == true_label:
+            correct += 1
+    accuracy = correct / len(examples) if examples else 0.0
+    return {"accuracy": accuracy, "confusion": confusion}
+
+
+def predict_ensemble(nb_model, logreg_model, text):
+    """Усредняет вероятности двух независимых моделей (Naive Bayes + LogReg)."""
+    nb_res = predict_nb(nb_model, text)
+    lr_res = predict_logreg(logreg_model, text)
+    classes = nb_model["classes"]
+    avg_probs = {c: (nb_res["probs"][c] + lr_res["probs"].get(c, 0.0)) / 2.0 for c in classes}
+    top_class = max(avg_probs, key=avg_probs.get)
+    agree = nb_res["top_class"] == lr_res["top_class"]
+    return {
+        "probs": avg_probs,
+        "top_class": top_class,
+        "nb": nb_res,
+        "logreg": lr_res,
+        "agree": agree,
+        "top_features": nb_res["top_features"],
+    }
+
+
+# ---------------------------------------------------------------------------
 # 2) Символьная n-граммная языковая модель (для паролей)
 # ---------------------------------------------------------------------------
 
