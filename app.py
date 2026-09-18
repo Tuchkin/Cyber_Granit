@@ -98,6 +98,15 @@ def ai_render_osint_result(text):
         st.caption("На это обратил внимание ИИ: " + ", ".join(res["top_features"]))
     _ai_render_agreement(res, AI_OSINT_LABELS)
 
+
+def _ai_example_buttons(key, examples):
+    """examples: список (подпись_кнопки, текст_примера). Клик подставляет текст в поле с этим key."""
+    cols = st.columns(len(examples))
+    for col, (label, text) in zip(cols, examples):
+        if col.button(label, key=f"ex_{key}_{label}"):
+            st.session_state[key] = text
+
+
 # --- НАСТРОЙКИ СТРАНИЦЫ И СТИЛИ ---
 st.set_page_config(page_title="Кибер-Гранит | ВПК", page_icon="🛡️", layout="wide")
 
@@ -349,11 +358,11 @@ def page_osint():
     st.markdown("---")
     st.header("🔬 Проверь своё фото на геометки прямо сейчас")
     st.write("Это не ИИ, а честный разбор EXIF-метаданных файла — тот же принцип, которым пользуются настоящие OSINT-аналитики. Файл обрабатывается локально на этом же компьютере и никуда не отправляется в интернет.")
-    exif_file = st.file_uploader("Выбери JPEG-файл:", type=["jpg", "jpeg"], key="exif_uploader")
-    if exif_file is not None:
+
+    def _render_exif_result(image_source, source_note=None):
         try:
             from PIL import Image
-            img = Image.open(exif_file)
+            img = Image.open(image_source)
             exif = img.getexif()
             if not exif:
                 st.success("✅ В файле не найдено EXIF-метаданных (либо они уже были удалены — это правильная практика перед публикацией).")
@@ -385,8 +394,20 @@ def page_osint():
                     meta.append(f"дата съёмки: {date_time}")
                 if meta:
                     st.info("ℹ️ Дополнительно в метаданных: " + "; ".join(meta) + ".")
+            st.caption("🔒 " + (source_note or "Файл не покидал ваш компьютер — разбор выполнен локально, без интернета."))
         except Exception as e:
             st.warning(f"Не удалось разобрать файл: {e}")
+
+    if st.button("🎯 Попробовать на примере (без своего фото)", key="exif_demo_btn"):
+        _render_exif_result(
+            os.path.join(IMAGES_DIR, "demo-gps-sample.jpg"),
+            "Это демо-файл, встроенный в проект (не ваше фото) — показан для примера работы разбора.",
+        )
+
+    exif_file = st.file_uploader("Выбери JPEG-файл:", type=["jpg", "jpeg"], key="exif_uploader")
+    st.caption("💡 Многие мессенджеры и современные телефоны по умолчанию уже удаляют геометки — если ваше фото покажет «GPS не найдены», это не ошибка инструмента, а хороший знак.")
+    if exif_file is not None:
+        _render_exif_result(exif_file)
 
     st.header("🔒 3. Базовая настройка Telegram")
     st.write("Твой Telegram должен быть крепостью. Зайди в Настройки -> Конфиденциальность и установи:")
@@ -404,6 +425,10 @@ def page_osint():
         st.error(f"Ошибка загрузки картинки: {e}")
     st.write("Опишите словами свою будущую публикацию (что на фото, что написано на заднем плане, есть ли геометка) — ИИ оценит риск оперативной утечки.")
     if AI_AVAILABLE:
+        _ai_example_buttons("ai_osint_input", [
+            ("⚠️ Пример: рискованно", "Видео с построения, на фоне видна табличка с номером части и картой расположения постов."),
+            ("✅ Пример: безопасно", "Общее фото с друзьями на фоне нейтральной стены, геолокация отключена."),
+        ])
         osint_ai_text = st.text_area("Описание публикации:", key="ai_osint_input", placeholder="Например: селфи на фоне доски с расписанием дежурств и картой района...")
         if st.button("🔍 Оценить риск через ИИ", key="ai_osint_btn") and osint_ai_text.strip():
             ai_render_osint_result(osint_ai_text)
@@ -502,7 +527,11 @@ def page_passwords():
         final_score = max(0, min(100, int((score / 6) * 100)))
         return final_score, feedback, time_to_crack
 
-    test_password = st.text_input("Введите тренировочный пароль:", type="default", placeholder="Например: MyP@ssw0rd!2024")
+    _ai_example_buttons("pwd_test_input", [
+        ("⚠️ Пример: слабый пароль", "qwerty123"),
+        ("✅ Пример: сильная фраза", "Bronya_Granit_Rubezh_Sever_99!"),
+    ])
+    test_password = st.text_input("Введите тренировочный пароль:", type="default", placeholder="Например: MyP@ssw0rd!2024", key="pwd_test_input")
     
     if test_password:
         score, feedback, time_to_crack = evaluate_password(test_password)
@@ -635,6 +664,10 @@ def page_phishing():
     st.subheader("🧠 ИИ-анализ произвольного сообщения")
     st.write("Вставьте своё сообщение — тот же ИИ-модуль, что и в разделе «ИИ-Ассистент», определит тип угрозы.")
     if AI_AVAILABLE:
+        _ai_example_buttons("ai_phish_input", [
+            ("⚠️ Пример: фишинг", "Боец, срочно! Наш клуб участвует в голосовании. Перейди по ссылке и введи свой пароль от Telegram для подтверждения голоса."),
+            ("✅ Пример: безопасно", "Расписание дежурств на следующую неделю опубликовано на стенде клуба, изменений нет."),
+        ])
         phish_ai_text = st.text_area("Текст сообщения:", key="ai_phish_input", placeholder="Вставьте текст подозрительного сообщения...")
         if st.button("🔍 Проверить через ИИ", key="ai_phish_btn") and phish_ai_text.strip():
             ai_render_message_result(phish_ai_text)
@@ -1051,6 +1084,10 @@ def page_ipso():
     st.subheader("🧠 ИИ-детектор фейков")
     st.write("Вставьте текст любого поста или сообщения — ИИ оценит, похож ли он на ИПсО/фейк, фишинг, вербовку или безопасное сообщение.")
     if AI_AVAILABLE:
+        _ai_example_buttons("ai_ipso_input", [
+            ("⚠️ Пример: ИПсО/фейк", "СРОЧНО!!! 🔥 Только что узнал от знакомого в штабе — всех курсантов тайно вывозят завтра! МАКСИМАЛЬНЫЙ РЕПОСТ, пока не удалили!!!"),
+            ("✅ Пример: безопасно", "Штаб клуба сообщает: набор в военно-патриотический клуб на новый учебный год открыт, подробности у классных руководителей."),
+        ])
         ipso_ai_text = st.text_area("Текст новости или поста:", key="ai_ipso_input", placeholder="Вставьте текст новости или поста...")
         if st.button("🔍 Проверить через ИИ", key="ai_ipso_btn") and ipso_ai_text.strip():
             ai_render_message_result(ipso_ai_text)
@@ -1091,6 +1128,12 @@ def page_ai():
     except Exception as e:
         st.error(f"Ошибка загрузки картинки: {e}")
     st.write("Вставьте любое подозрительное сообщение — ИИ определит тип угрозы (фишинг / вербовка / ИПсО / безопасно) и покажет ключевые слова, повлиявшие на решение.")
+    _ai_example_buttons("ai_hub_msg", [
+        ("⚠️ Пример: фишинг", "Уважаемый пользователь, ваш аккаунт заблокирован системой безопасности. Перейдите по ссылке и введите пароль для разблокировки."),
+        ("⚠️ Пример: вербовка", "Привет! Есть подработка 150 рублей, нужно просто сфотографировать въезд на территорию части и прислать координаты."),
+        ("⚠️ Пример: ИПсО", "СРОЧНО!!! Всех расформировывают, забирают телефоны!!! МАКСИМАЛЬНЫЙ РЕПОСТ, пока не удалили!!!"),
+        ("✅ Пример: безопасно", "Расписание тренировок на вторник без изменений, начало в 17:00."),
+    ])
     msg_text = st.text_area("Текст сообщения:", key="ai_hub_msg", placeholder="Например: Боец, срочно перейди по ссылке и подтверди пароль...")
     if st.button("🔍 Проанализировать", key="ai_hub_msg_btn") and msg_text.strip():
         ai_render_message_result(msg_text)
@@ -1098,6 +1141,10 @@ def page_ai():
     st.markdown("---")
     st.header("👁️ ИИ-скоринг риска OSINT-публикации")
     st.write("Опишите словами фото или пост, который собираетесь опубликовать — ИИ оценит риск утечки оперативной информации.")
+    _ai_example_buttons("ai_hub_osint", [
+        ("⚠️ Пример: рискованно", "Селфи в штабе, на фоне видна доска с расписанием дежурств и картой района."),
+        ("✅ Пример: безопасно", "Фото на фоне заката в парке, без подписи и геометки."),
+    ])
     osint_text = st.text_area("Описание публикации:", key="ai_hub_osint", placeholder="Например: селфи в штабе, на фоне видна доска с расписанием дежурств...")
     if st.button("🔍 Оценить риск", key="ai_hub_osint_btn") and osint_text.strip():
         ai_render_osint_result(osint_text)

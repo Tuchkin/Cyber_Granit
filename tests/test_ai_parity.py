@@ -35,6 +35,17 @@ TEST_PASSWORDS = [
     "VPK_Granit_2025!", "Zxcvbnm123456!@#", "Bronya_Granit_Rubezh_Sever_99!",
     "qwerty123", "kH7$mQ2!vLpZ9#eR",
 ]
+# (запрос, должен ли ИИ-консультант найти ответ в базе знаний)
+CHAT_QUERIES = [
+    ("как дела?", False),
+    ("привет", False),
+    ("сколько будет 2+2", False),
+    ("расскажи анекдот", False),
+    ("что такое любовь", False),
+    ("Что делать если нашел флешку", True),
+    ("как включить 2fa", True),
+    ("что такое OSINT", True),
+]
 
 
 def load_json(name):
@@ -70,26 +81,33 @@ def build_js_harness(script_code, payload):
         "global.window = {scrollTo(){}};\n"
         + script_code
         + "\nconst testData = " + json.dumps(payload, ensure_ascii=False) + ";\n"
-        "const out = {messages: [], osint: [], passwords: [], ensemble_messages: [], ensemble_osint: []};\n"
+        "const out = {messages: [], osint: [], passwords: [], ensemble_messages: [], ensemble_osint: [], chat: []};\n"
         "testData.messages.forEach(t => { const r = aiPredictNB(AI_MSG_MODEL, t); out.messages.push({topClass: r.topClass, probs: r.probs}); });\n"
         "testData.osint.forEach(t => { const r = aiPredictNB(AI_OSINT_MODEL, t); out.osint.push({topClass: r.topClass, probs: r.probs}); });\n"
         "testData.passwords.forEach(p => { out.passwords.push(aiPasswordPredictability(AI_PWD_MODEL, p)); });\n"
         "testData.messages.forEach(t => { const r = aiPredictEnsemble(AI_MSG_MODEL, AI_MSG_LOGREG_MODEL, t); out.ensemble_messages.push({topClass: r.topClass, probs: r.probs, agree: r.agree}); });\n"
         "testData.osint.forEach(t => { const r = aiPredictEnsemble(AI_OSINT_MODEL, AI_OSINT_LOGREG_MODEL, t); out.ensemble_osint.push({topClass: r.topClass, probs: r.probs, agree: r.agree}); });\n"
+        "testData.chatQueries.forEach(q => { const r = aiChatAnswer(q[0]); out.chat.push({matched: r.matched, q: r.matched ? r.q : null}); });\n"
         "console.log(JSON.stringify(out));\n"
     )
 
 
 def main():
+    from datasets import CHAT_KB  # noqa: E402
+
     msg_model = load_json("message_classifier.json")
     msg_logreg = load_json("message_classifier_logreg.json")
     osint_model = load_json("osint_risk_classifier.json")
     osint_logreg = load_json("osint_risk_classifier_logreg.json")
     pwd_model = load_json("password_ngram.json")
+    chat_index = eng.build_tfidf(CHAT_KB)
 
     html_path = os.path.join(BASE, "Cyber_Granit.html")
     script_code = extract_script(html_path)
-    payload = {"messages": TEST_MESSAGES, "osint": TEST_OSINT, "passwords": TEST_PASSWORDS}
+    payload = {
+        "messages": TEST_MESSAGES, "osint": TEST_OSINT, "passwords": TEST_PASSWORDS,
+        "chatQueries": CHAT_QUERIES,
+    }
     js_code = build_js_harness(script_code, payload)
     stdout = run_js(js_code)
     js_result = json.loads(stdout.strip().splitlines()[-1])
@@ -134,6 +152,16 @@ def main():
         if py["top_class"] != js["topClass"]:
             errors.append(f"ensemble_osint[{i}] top_class mismatch: py={py['top_class']} js={js['topClass']}")
 
+    for i, (query, should_match) in enumerate(CHAT_QUERIES):
+        py = eng.chat_answer(CHAT_KB, chat_index, query)
+        js = js_result["chat"][i]
+        if py["matched"] != should_match:
+            errors.append(f"chat[{i}] {query!r}: expected matched={should_match}, Python got matched={py['matched']}")
+        if js["matched"] != should_match:
+            errors.append(f"chat[{i}] {query!r}: expected matched={should_match}, JS got matched={js['matched']}")
+        if py["matched"] and js["matched"] and py.get("q") != js.get("q"):
+            errors.append(f"chat[{i}] {query!r}: Python matched {py.get('q')!r} but JS matched {js.get('q')!r}")
+
     if errors:
         print("PARITY TEST FAILED:")
         for e in errors:
@@ -142,7 +170,8 @@ def main():
 
     print(
         f"Parity OK: {len(TEST_MESSAGES)} messages, {len(TEST_OSINT)} osint-descriptions, "
-        f"{len(TEST_PASSWORDS)} passwords, plus NB+LogReg ensemble on both classifiers — "
+        f"{len(TEST_PASSWORDS)} passwords, NB+LogReg ensemble on both classifiers, "
+        f"{len(CHAT_QUERIES)} chat queries (incl. off-topic rejection) — "
         f"Python and embedded JavaScript agree."
     )
 
