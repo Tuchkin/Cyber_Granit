@@ -20,6 +20,7 @@ HTML-версии (Cyber_Granit.html) и использовать напряму
    а не просто regex.
 """
 import re
+import html
 import math
 from collections import Counter, defaultdict
 
@@ -288,6 +289,29 @@ def predict_ensemble(nb_model, logreg_model, text):
         "agree": agree,
         "top_features": nb_res["top_features"],
     }
+
+
+_HIGHLIGHT_TOKEN_RE = re.compile(r"[0-9a-zA-Zа-яА-ЯёЁ]+")
+
+
+def highlight_words(text, words):
+    """HTML с <mark> вокруг слов из words (нормализованные токены — нижний
+    регистр, ё→е), встреченных в исходном (не нормализованном) тексте.
+    Один-в-один портировано в JS: aiHighlightWords (Cyber_Granit.html)."""
+    text = text or ""
+    if not words:
+        return html.escape(text)
+    word_set = set(words)
+    out = []
+    last_index = 0
+    for m in _HIGHLIGHT_TOKEN_RE.finditer(text):
+        out.append(html.escape(text[last_index:m.start()]))
+        token = m.group(0)
+        norm = token.lower().replace("ё", "е")
+        out.append(("<mark>" + html.escape(token) + "</mark>") if norm in word_set else html.escape(token))
+        last_index = m.end()
+    out.append(html.escape(text[last_index:]))
+    return "".join(out)
 
 
 # ---------------------------------------------------------------------------
