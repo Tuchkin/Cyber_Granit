@@ -99,6 +99,35 @@ def ai_render_osint_result(text):
     _ai_render_agreement(res, AI_OSINT_LABELS)
 
 
+def _render_telegram_section(heading_size="header"):
+    getattr(st, heading_size)("📱 Кибер-Гранит.ИИ онлайн — в Telegram")
+    st.write(
+        "Тот же ИИ-модуль портала (анализ угроз, OSINT-риск, консультант) — прямо в Telegram, "
+        "без установки чего-либо. **Работает при наличии интернета** — это дополнительный канал, "
+        "а не замена офлайн-полигону: прохождение квеста и все офлайн-инструменты от бота не зависят."
+    )
+    qr_path = os.path.join(IMAGES_DIR, "telegram-bot-qr.png")
+    col1, col2 = st.columns([2, 1])
+    with col1:
+        st.link_button("💬 Открыть @CyberGranitBot", "https://t.me/CyberGranitBot")
+    with col2:
+        if os.path.exists(qr_path):
+            st.image(qr_path, caption="Отсканируйте телефоном", width="stretch")
+        else:
+            st.info("QR-код появится после публикации бота.")
+
+
+def _nav_card(col, icon, title, desc, target_page, key, badge=None):
+    with col:
+        with st.container(border=True):
+            label = f"{icon} {title}" + (f"  🟢`{badge}`" if badge else "")
+            st.markdown(f"**{label}**")
+            st.caption(desc)
+            if st.button("Открыть →", key=key, width="stretch"):
+                st.session_state.pending_nav = target_page
+                st.rerun()
+
+
 def _ai_example_buttons(key, examples):
     """examples: список (подпись_кнопки, текст_примера). Клик подставляет текст в поле с этим key."""
     cols = st.columns(len(examples))
@@ -158,15 +187,22 @@ st.sidebar.markdown("""
 
 st.sidebar.divider()
 
-page = st.sidebar.radio("Навигация по разделам:", 
-    ["Главная", 
+# Карточки на главной странице ставят сюда "pending_nav" перед rerun() —
+# session_state для ключа виджета нельзя менять ПОСЛЕ того, как сам виджет
+# отрисован в этом прогоне скрипта, поэтому применяем запрос на переход ДО
+# создания st.sidebar.radio ниже.
+if "pending_nav" in st.session_state:
+    st.session_state.nav_radio = st.session_state.pop("pending_nav")
+
+page = st.sidebar.radio("Навигация по разделам:",
+    ["Главная",
      "Законодательство РБ",
      "ИПсО и Фейки",
-     "ОСИНТ и Соцсети", 
+     "ОСИНТ и Соцсети",
      "Пароль-контроль",
      "Анти-Фишинг",
      "ИИ-Ассистент",
-     "Кибер-Полигон"])
+     "Кибер-Полигон"], key="nav_radio")
 
 # Автоматическая прокрутка наверх при смене раздела
 if 'current_page' not in st.session_state:
@@ -183,6 +219,17 @@ components.html(
 )
 
 st.sidebar.divider()
+_qr_path = os.path.join(IMAGES_DIR, "telegram-bot-qr.png")
+if os.path.exists(_qr_path):
+    _c1, _c2, _c3 = st.sidebar.columns([1, 1, 1])
+    with _c2:
+        st.image(_qr_path, width="stretch")
+    st.sidebar.markdown(
+        "<div style='text-align:center; font-size:0.78rem; color:#8b949e; margin-top:-8px;'>"
+        "📱 <b>Онлайн-режим</b><br>@CyberGranitBot в Telegram</div>",
+        unsafe_allow_html=True,
+    )
+    st.sidebar.divider()
 st.sidebar.info("Разработано для повышения уровня информационной защиты курсантов военно-патриотических клубов.")
 
 # --- РАЗДЕЛ: ГЛАВНАЯ ---
@@ -211,10 +258,26 @@ def page_home():
     * Соблюдать законы Республики Беларусь в цифровой среде.
     """)
     
-    st.info("👈 Выбери раздел в меню слева, чтобы начать подготовку.")
-    
+    st.info("👈 Выбери раздел в меню слева — или нажми на карточку ниже, чтобы сразу перейти.")
+
     st.markdown("---")
-    
+    st.subheader("🧭 Разделы портала")
+    row1 = st.columns(3)
+    _nav_card(row1[0], "⚖️", "Законодательство РБ", "Какие статьи УК и КоАП касаются цифровой безопасности — и что грозит за нарушение.", "Законодательство РБ", "card_laws")
+    _nav_card(row1[1], "🧠", "ИПсО и Фейки", "Как распознать вброс, манипуляцию и дипфейк — тренажёр фактчекера + ИИ-детектор.", "ИПсО и Фейки", "card_ipso")
+    _nav_card(row1[2], "👁️", "ОСИНТ и Соцсети", "Геометки, правило заднего фона — и реальная проверка своего фото на EXIF/GPS.", "ОСИНТ и Соцсети", "card_osint")
+    row2 = st.columns(3)
+    _nav_card(row2[0], "🔐", "Пароль-контроль", "Проверка стойкости пароля + AI-оценка предсказуемости.", "Пароль-контроль", "card_pwd")
+    _nav_card(row2[1], "🎣", "Анти-Фишинг", "Распознавание вербовки и обмана на реальных сценариях.", "Анти-Фишинг", "card_phish")
+    _nav_card(row2[2], "🤖", "ИИ-Ассистент", "5 офлайн ИИ-моделей: анализатор угроз, OSINT-скоринг, консультант — без интернета.", "ИИ-Ассистент", "card_ai", badge="НОВОЕ")
+    row3 = st.columns(3)
+    _nav_card(row3[0], "🎯", "Кибер-Полигон", "7-этапный командно-штабной квест — финальная проверка всех знаний.", "Кибер-Полигон", "card_polygon")
+
+    st.markdown("---")
+    _render_telegram_section()
+
+    st.markdown("---")
+
     # НОВЫЙ БЛОК: Статистика киберпреступности (Единый день информирования, ноябрь 2025)
     st.markdown("<h3 style='text-align: center; color: #4CAF50;'>📊 Кибер-обстановка в Республике Беларусь (ноябрь 2025)</h3>", unsafe_allow_html=True)
     st.write("""
@@ -1195,21 +1258,7 @@ def page_ai():
     st.warning("⚠️ ИИ-модуль — тренажёр и инструмент поддержки решений, а не замена бдительности и правил, изученных в разделах портала. Все вычисления выполняются локально на компьютере пользователя.")
 
     st.markdown("---")
-    st.header("📱 Онлайн-режим (по желанию, через Telegram)")
-    st.write(
-        "Проект работает в двух режимах. **Основной — офлайн**: всё выше не требует интернета "
-        "вообще. **Дополнительный — онлайн**: тот же ИИ-модуль (те же обученные модели) доступен "
-        "в виде Telegram-бота — можно задать вопрос ИИ-консультанту или проверить сообщение прямо "
-        "с телефона. Онлайн-режим требует подключения к интернету и никак не влияет на прохождение "
-        "офлайн-полигона — это независимое расширение, а не замена."
-    )
-    qr_path = os.path.join(IMAGES_DIR, "telegram-bot-qr.png")
-    if os.path.exists(qr_path):
-        col1, col2, col3 = st.columns([1, 1, 1])
-        with col2:
-            st.image(qr_path, caption="Отсканируйте, чтобы открыть Telegram-бота «Кибер-Гранит.ИИ» (нужен интернет)", width="stretch")
-    else:
-        st.info("QR-код появится после публикации бота — см. telegram_bot/README.md")
+    _render_telegram_section()
 
 
 # --- РОУТИНГ СТРАНИЦ ---

@@ -41,7 +41,12 @@
   }
   #sidebar button:hover { background: var(--bg3); border-color: var(--border); }
   #sidebar button.active { background: var(--dark-green); border-color: var(--accent); color: #fff; font-weight: 600; }
-  #sidebar .info-box { background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; font-size: 0.75rem; color: var(--text-dim); margin-top: auto; }
+  #sidebar .info-box { background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; font-size: 0.75rem; color: var(--text-dim); }
+  #sidebar .sidebar-qr { margin-top: auto; text-align: center; padding: 10px 8px 4px; cursor: pointer; }
+  #sidebar .sidebar-qr img { width: 82px; height: 82px; border-radius: 6px; border: 2px solid var(--border); background: #fff; padding: 4px; transition: border-color .2s; }
+  #sidebar .sidebar-qr:hover img { border-color: var(--accent); }
+  #sidebar .sidebar-qr .sidebar-qr-label { font-size: 0.72rem; color: var(--text-dim); margin-top: 6px; line-height: 1.4; }
+  #sidebar .sidebar-qr .sidebar-qr-label b { color: var(--accent); }
 
   /* MAIN */
   #main { flex: 1; padding: 32px 40px; max-width: 960px; }
@@ -81,6 +86,23 @@
   .img-wrap-narrow { max-width: 320px; margin: 16px auto; text-align: center; }
   .img-wrap-narrow img { max-width: 100%; border-radius: 10px; border: 1px solid var(--border); }
   .img-wrap-narrow .cap { font-size: 0.78rem; color: var(--text-dim); margin-top: 6px; }
+
+  /* NAV CARDS (главная страница) */
+  .nav-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 16px 0; }
+  @media(max-width:700px){ .nav-cards{ grid-template-columns: 1fr; } }
+  .nav-card {
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 18px; cursor: pointer; transition: all 0.2s; position: relative;
+  }
+  .nav-card:hover { border-color: var(--accent); background: var(--bg3); transform: translateY(-2px); }
+  .nav-card .nav-card-icon { font-size: 1.8rem; margin-bottom: 8px; }
+  .nav-card .nav-card-title { font-weight: 700; color: #e6edf3; margin-bottom: 4px; font-size: 0.98rem; }
+  .nav-card .nav-card-desc { font-size: 0.82rem; color: var(--text-dim); line-height: 1.5; }
+  .nav-card.nav-card-highlight { border-color: var(--accent); background: rgba(63,185,80,0.08); }
+  .nav-card .nav-card-badge {
+    position: absolute; top: -8px; right: 12px; background: var(--dark-green); color: #fff;
+    font-size: 0.68rem; font-weight: 700; padding: 2px 8px; border-radius: 10px; letter-spacing: .03em;
+  }
 
   /* PASSWORD */
   .pwd-input { width: 100%; background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; color: var(--text); padding: 10px 14px; font-size: 1rem; margin: 8px 0; }
@@ -142,15 +164,19 @@
     (224 СШ г. Минска, ВПК Гранит)<br>
   </div>
   <hr>
-  <button class="active" onclick="showPage('home',this)">🏠 Главная</button>
-  <button onclick="showPage('laws',this)">⚖️ Законодательство РБ</button>
-  <button onclick="showPage('ipso',this)">🧠 ИПсО и Фейки</button>
-  <button onclick="showPage('osint',this)">👁️ ОСИНТ и Соцсети</button>
-  <button onclick="showPage('passwords',this)">🔐 Пароль-контроль</button>
-  <button onclick="showPage('phishing',this)">🎣 Анти-Фишинг</button>
-  <button onclick="showPage('ai',this)">🤖 ИИ-Ассистент</button>
-  <button onclick="showPage('polygon',this)">🎯 Кибер-Полигон</button>
+  <button id="nav-btn-home" class="active" onclick="showPage('home',this)">🏠 Главная</button>
+  <button id="nav-btn-laws" onclick="showPage('laws',this)">⚖️ Законодательство РБ</button>
+  <button id="nav-btn-ipso" onclick="showPage('ipso',this)">🧠 ИПсО и Фейки</button>
+  <button id="nav-btn-osint" onclick="showPage('osint',this)">👁️ ОСИНТ и Соцсети</button>
+  <button id="nav-btn-passwords" onclick="showPage('passwords',this)">🔐 Пароль-контроль</button>
+  <button id="nav-btn-phishing" onclick="showPage('phishing',this)">🎣 Анти-Фишинг</button>
+  <button id="nav-btn-ai" onclick="showPage('ai',this)">🤖 ИИ-Ассистент</button>
+  <button id="nav-btn-polygon" onclick="showPage('polygon',this)">🎯 Кибер-Полигон</button>
   <hr>
+  <div class="sidebar-qr" onclick="navigateTo('ai')" title="Открыть раздел ИИ-Ассистент">
+    <img src="images/telegram-bot-qr.png" alt="QR-код Telegram-бота" onerror="this.style.display='none';">
+    <div class="sidebar-qr-label">📱 <b>Онлайн-режим</b><br>@CyberGranitBot в Telegram</div>
+  </div>
   <div class="info-box">Разработано для повышения уровня информационной защиты воспитанников военно-патриотических клубов.</div>
 </nav>
 
@@ -174,7 +200,64 @@
     <li>Соблюдать законы Республики Беларусь в цифровой среде.</li>
   </ul>
 
-  <div class="alert alert-info" style="margin-top:16px;">👈 Выбери раздел в меню слева, чтобы начать подготовку.</div>
+  <div class="alert alert-info" style="margin-top:16px;">👈 Выбери раздел в меню слева — или нажми на карточку ниже, чтобы сразу перейти.</div>
+
+  <hr>
+
+  <h2>🧭 Разделы портала</h2>
+  <div class="nav-cards">
+    <div class="nav-card" onclick="navigateTo('laws')">
+      <div class="nav-card-icon">⚖️</div>
+      <div class="nav-card-title">Законодательство РБ</div>
+      <div class="nav-card-desc">Какие статьи УК и КоАП касаются цифровой безопасности — и что грозит за нарушение.</div>
+    </div>
+    <div class="nav-card" onclick="navigateTo('ipso')">
+      <div class="nav-card-icon">🧠</div>
+      <div class="nav-card-title">ИПсО и Фейки</div>
+      <div class="nav-card-desc">Как распознать вброс, манипуляцию и дипфейк — тренажёр фактчекера + ИИ-детектор.</div>
+    </div>
+    <div class="nav-card" onclick="navigateTo('osint')">
+      <div class="nav-card-icon">👁️</div>
+      <div class="nav-card-title">ОСИНТ и Соцсети</div>
+      <div class="nav-card-desc">Геометки, правило заднего фона — и реальная проверка своего фото на EXIF/GPS.</div>
+    </div>
+    <div class="nav-card" onclick="navigateTo('passwords')">
+      <div class="nav-card-icon">🔐</div>
+      <div class="nav-card-title">Пароль-контроль</div>
+      <div class="nav-card-desc">Проверка стойкости пароля + AI-оценка предсказуемости.</div>
+    </div>
+    <div class="nav-card" onclick="navigateTo('phishing')">
+      <div class="nav-card-icon">🎣</div>
+      <div class="nav-card-title">Анти-Фишинг</div>
+      <div class="nav-card-desc">Распознавание вербовки и обмана на реальных сценариях.</div>
+    </div>
+    <div class="nav-card nav-card-highlight" onclick="navigateTo('ai')">
+      <div class="nav-card-badge">НОВОЕ</div>
+      <div class="nav-card-icon">🤖</div>
+      <div class="nav-card-title">ИИ-Ассистент</div>
+      <div class="nav-card-desc">5 офлайн ИИ-моделей: анализатор угроз, OSINT-скоринг, консультант — работает без интернета.</div>
+    </div>
+    <div class="nav-card nav-card-highlight" onclick="navigateTo('polygon')">
+      <div class="nav-card-icon">🎯</div>
+      <div class="nav-card-title">Кибер-Полигон</div>
+      <div class="nav-card-desc">7-этапный командно-штабной квест — финальная проверка всех знаний.</div>
+    </div>
+  </div>
+
+  <hr>
+
+  <h2>📱 Кибер-Гранит.ИИ онлайн — в Telegram</h2>
+  <div class="cols2" style="align-items:center;">
+    <div>
+      <p>Тот же ИИ-модуль портала (анализ угроз, OSINT-риск, консультант) — прямо в Telegram, без установки чего-либо. Полезно, когда под рукой только телефон.</p>
+      <p><strong>Работает при наличии интернета</strong> — это дополнительный канал, а не замена офлайн-полигону: прохождение квеста и все офлайн-инструменты от бота не зависят.</p>
+      <a href="https://t.me/CyberGranitBot" class="btn btn-primary" style="text-decoration:none; display:inline-block;">💬 Открыть @CyberGranitBot</a>
+    </div>
+    <div class="img-wrap-narrow" style="margin:16px auto;">
+      <img src="images/telegram-bot-qr.png" alt="QR-код Telegram-бота" onerror="this.parentNode.innerHTML='<div class=\'img-missing\'>⚠️ QR-код появится после публикации бота</div>'">
+      <div class="cap">Отсканируйте телефоном, чтобы открыть бота</div>
+    </div>
+  </div>
 
   <hr>
 
@@ -629,6 +712,10 @@ function showPage(id, btn) {
   document.querySelectorAll('#sidebar button').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
   window.scrollTo({ top: 0, behavior: 'instant' });
+}
+
+function navigateTo(id) {
+  showPage(id, document.getElementById('nav-btn-' + id));
 }
 
 // ============ ИПсО ТРЕНАЖЕР ============

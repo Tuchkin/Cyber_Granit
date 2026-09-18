@@ -1,0 +1,136 @@
+ПРОМТЫ ДЛЯ NANOBANANA — ПЕРЕГЕНЕРАЦИЯ 4 картинок ИИ-модуля
+=================================================================
+(версия 2: та же тема, но с явным требованием АЛЬБОМНОЙ ориентации —
+в прошлый раз все 4 картинки вышли портретными/вертикальными и выбиваются
+по компоновке из остальных 13 картинок сайта, которые все альбомные —
+см. пример: anti-phishing-shield.png, legislation-belarus-cyber.png и т.д.)
+
+ВАЖНО ПРО ЭМБЛЕМУ (cyber-granite-emblem.png) — её перегенерировать НЕ
+НАДО. Она сделана на основе реальной фотографии автора (референс-фото,
+а не просто текстовый промт), поэтому она портретная и это нормально —
+на неё это ограничение не распространяется, трогать не нужно.
+
+А вот 4 картинки ниже (ai-hub-neural-shield.png, ai-message-classifier-
+terminal.png, ai-password-strength-scan.png, osint-ai-photo-scanner.png)
+были сделаны чисто по текстовому промту, без референс-фото — их можно
+и нужно перегенерировать в правильной ориентации.
+
+КУДА СКИДЫВАТЬ: та же папка
+  Голубева Дарина - Кибер-Гранит\images\
+  (перезаписать файлы с ТЕМИ ЖЕ именами — новые версии подхватятся в коде
+  автоматически, ничего менять не нужно)
+
+ИМЕНА ФАЙЛОВ (не менять):
+  1) ai-hub-neural-shield.png
+  2) ai-message-classifier-terminal.png
+  3) ai-password-strength-scan.png
+  4) osint-ai-photo-scanner.png
+
+ЧТО ПОМЕНЯТЬ В ПРОМТЕ (по сравнению с прошлым разом): в NanoBanana, если
+есть выбор соотношения сторон/ориентации — ОБЯЗАТЕЛЬНО выбери "landscape"
+/ "widescreen" / "16:9", а не "portrait"/"vertical"/"story". Если такого
+выбора в интерфейсе нет, продублируй в конце текста промта явное
+указание — это уже добавлено ниже в каждый промт.
+
+Всё остальное (стиль, цвета, содержание) — без изменений от первой
+версии, картинки по содержанию уже получились отличные, дело было
+именно в ориентации.
+
+-----------------------------------------------------------------
+1) ai-hub-neural-shield.png
+   Назначение: главная (обложечная) картинка раздела «🤖 ИИ-Ассистент».
+
+   ПРОМТ:
+   "A glowing holographic shield made of neural-network nodes and
+   connecting lines, floating above a dark military command console.
+   Inside the shield, a stylized brain/circuit hybrid icon pulses with
+   cyan light. Around it, thin translucent panels display scrolling
+   text-analysis data and small percentage bars. Blue and cyan neon as
+   primary light, red and green accent lighting (Belarus flag colors).
+   Blurred silhouettes of two cadets in camouflage working at computer
+   terminals in the background, out of focus. Bold Russian caption
+   glowing on the central console screen: "ИИ-АНАЛИЗ АКТИВЕН" (используй
+   только русский текст на самой картинке, без английских надписей).
+   Dark command-center atmosphere, cables and circuit patterns on the
+   floor, cinematic lighting, hyper-detailed digital art, dark military
+   cybersecurity aesthetic. WIDE LANDSCAPE BANNER COMPOSITION, 16:9
+   horizontal aspect ratio — the scene must be framed as a wide horizontal
+   shot (like a panoramic photo), NOT a vertical/portrait/phone-story
+   image. Horizontal orientation only."
+
+-----------------------------------------------------------------
+2) ai-message-classifier-terminal.png
+   Назначение: виджет ИИ-анализа сообщений (Анти-Фишинг, ИПсО,
+   раздел ИИ-Ассистент).
+
+   ПРОМТ:
+   "A rugged military tablet on a dark desk displaying an AI text
+   analysis interface: a chat message bubble being scanned by a
+   glowing cyan scanning line, with four small horizontal probability
+   bars below labeled with short Russian words (ФИШИНГ, ВЕРБОВКА,
+   ИПСО, БЕЗОПАСНО), one bar highlighted in red as the highest risk.
+   A translucent holographic magnifying glass hovers over suspicious
+   highlighted words in the message. Dark server room background with
+   blurred red and blue neon lights, out-of-focus silhouette of a
+   soldier at another monitor. Bold glowing Russian caption above the
+   tablet: "АНАЛИЗ УГРОЗЫ ИИ". Cinematic lighting, hyper-detailed
+   digital art, dark military cybersecurity aesthetic, Belarus
+   red-green accent lighting. WIDE LANDSCAPE BANNER COMPOSITION, 16:9
+   horizontal aspect ratio — frame the tablet and room as a wide
+   horizontal shot, NOT vertical/portrait/phone-story. Horizontal
+   orientation only."
+
+-----------------------------------------------------------------
+3) ai-password-strength-scan.png
+   Назначение: виджет ИИ-оценки пароля (раздел Пароль-контроль).
+
+   ПРОМТ:
+   "A glowing digital vault door partially open, with a stream of
+   password characters flowing into a holographic AI scanner that
+   analyzes them letter by letter, some letters highlighted red
+   (predictable pattern) and some green (strong). A circular progress
+   dial in cyan light shows an analysis percentage. Dark cybersecurity
+   command-room background, faint circuit patterns, blue and cyan neon
+   as primary light with subtle red accents. Bold glowing Russian
+   caption on the vault screen: "AI-АНАЛИЗ ПАРОЛЯ". No readable real
+   password text, just abstract glowing symbols/dots. Cinematic
+   lighting, hyper-detailed digital art, dark military cybersecurity
+   aesthetic. WIDE LANDSCAPE BANNER COMPOSITION, 16:9 horizontal aspect
+   ratio — the vault door and scanner should be framed side-by-side in
+   a wide horizontal shot, NOT vertical/portrait/phone-story. Horizontal
+   orientation only."
+
+-----------------------------------------------------------------
+4) osint-ai-photo-scanner.png
+   Назначение: виджет ИИ-скоринга риска публикации/фото (раздел
+   ОСИНТ и Соцсети).
+
+   ПРОМТ:
+   "A holographic AI scanning grid sweeping over a smartphone photo
+   preview shown on a translucent HUD panel, with several detected
+   risk zones highlighted by red square markers and connecting lines
+   (like object-detection boxes), pointing to background details such
+   as a wall calendar and a map corner. A small floating panel next to
+   it shows a risk-percentage meter and short Russian risk labels. Dark
+   military analytics room background, blurred silhouette of a cadet
+   reviewing screens, blue and cyan neon as primary light with green
+   and red accents (Belarus flag colors). Bold glowing Russian caption:
+   "AI-СКАНЕР УТЕЧЕК". No real identifiable face on the scanned photo —
+   keep it a generic blurred figure. Cinematic lighting, hyper-detailed
+   digital art, dark military cybersecurity aesthetic. WIDE LANDSCAPE
+   BANNER COMPOSITION, 16:9 horizontal aspect ratio — place the phone
+   preview and side panel next to each other in a wide horizontal shot,
+   NOT vertical/portrait/phone-story. Horizontal orientation only."
+
+-----------------------------------------------------------------
+НЕОБЯЗАТЕЛЬНО (по желанию, низкий приоритет):
+
+5) stats-sectors-2025.png — на этой картинке текстом зашито «Позиция
+   Беларуси: 3-е место в СНГ по количеству кибератак». После проверки
+   фактов оказалось, что по разным отчётам 2024–2025 гг. это 2-е или
+   3-е место (точная цифра расходится по источникам), поэтому в тексте
+   вокруг картинки я уже смягчил формулировку до «2–3 место». Картинка
+   при этом продолжает утверждать ровно «3-е место» — если хочется
+   полной согласованности, можно перегенерировать с формулировкой
+   «2–3-е место в СНГ по количеству кибератак» вместо «3-е место»,
+   но это не критично и можно оставить как есть.
