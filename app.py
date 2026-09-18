@@ -69,6 +69,21 @@ def _ai_render_agreement(res, labels):
         )
 
 
+def _ai_render_highlight(text, top_features, caption):
+    if not top_features:
+        return
+    highlighted = ai_engine.highlight_words(text, top_features)
+    st.markdown(
+        f'<div style="font-size:0.8rem; color:#9aa0a6; margin:6px 0 2px;">{caption}</div>'
+        f'<div style="background:#1e1e1e; border:1px solid #333; border-radius:8px; '
+        f'padding:10px 14px; font-size:0.92rem; line-height:1.6; white-space:pre-wrap; color:#fff;">'
+        f'<style>mark {{ background: rgba(244,67,54,0.35); color: inherit; '
+        f'border-bottom: 2px solid #F44336; padding: 0 2px; border-radius: 2px; }}</style>'
+        f'{highlighted}</div>',
+        unsafe_allow_html=True,
+    )
+
+
 def ai_render_message_result(text):
     res = ai_engine.predict_ensemble(AI_MSG_MODEL, AI_MSG_LOGREG_MODEL, text)
     top = res["top_class"]
@@ -79,8 +94,7 @@ def ai_render_message_result(text):
         st.error(f"🚨 ИИ обнаружил признаки: **{AI_MSG_LABELS[top]}** (уверенность {conf}%).")
     for c in ["phishing", "social_engineering", "ipso_fake", "safe"]:
         st.progress(res["probs"][c], text=f"{AI_MSG_LABELS[c]}: {round(res['probs'][c]*100,1)}%")
-    if res["top_features"]:
-        st.caption("Слова, повлиявшие на решение ИИ: " + ", ".join(res["top_features"]))
+    _ai_render_highlight(text, res["top_features"], "🔍 Слова, повлиявшие на решение ИИ (выделены в тексте):")
     _ai_render_agreement(res, AI_MSG_LABELS)
 
 
@@ -94,8 +108,7 @@ def ai_render_osint_result(text):
         st.error(f"🚨 ИИ считает публикацию рискованной: вероятность утечки {risk}%.")
     for c in ["leak_risk", "safe"]:
         st.progress(res["probs"][c], text=f"{AI_OSINT_LABELS[c]}: {round(res['probs'][c]*100,1)}%")
-    if res["top_features"]:
-        st.caption("На это обратил внимание ИИ: " + ", ".join(res["top_features"]))
+    _ai_render_highlight(text, res["top_features"], "🔍 На это обратил внимание ИИ (выделено в тексте):")
     _ai_render_agreement(res, AI_OSINT_LABELS)
 
 

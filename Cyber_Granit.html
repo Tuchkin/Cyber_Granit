@@ -150,6 +150,10 @@
   .ai-chat-input-row input { flex: 1; margin: 0; }
   .ai-suggest { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 12px; }
   .ai-suggest button { font-size: 0.78rem; padding: 6px 10px; margin: 0; }
+  .ai-highlight-box { margin-top: 10px; background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+  .ai-highlight-caption { font-size: 0.8rem; color: var(--text-dim); margin-bottom: 6px; }
+  .ai-highlight-text { font-size: 0.92rem; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+  .ai-highlight-text mark { background: rgba(230, 57, 70, 0.28); color: var(--text); border-bottom: 2px solid var(--red); padding: 0 2px; border-radius: 2px; }
 </style>
 </head>
 <body>
@@ -1310,6 +1314,32 @@ function aiFillExample(id, text) {
   el.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
+function aiEscapeHtml(s) {
+  return (s || '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+}
+// Подсвечивает в исходном (не нормализованном) тексте слова, попавшие в topFeatures —
+// те же нормализованные токены (нижний регистр, ё→е), что вернула aiPredictNB.
+function aiHighlightWords(text, words) {
+  if (!words || !words.length) return aiEscapeHtml(text);
+  const wordSet = new Set(words);
+  const re = /[0-9a-zA-Zа-яА-ЯёЁ]+/g;
+  let out = '', lastIndex = 0, m;
+  while ((m = re.exec(text)) !== null) {
+    out += aiEscapeHtml(text.slice(lastIndex, m.index));
+    const token = m[0];
+    const norm = token.toLowerCase().replace(/ё/g, 'е');
+    out += wordSet.has(norm) ? '<mark>' + aiEscapeHtml(token) + '</mark>' : aiEscapeHtml(token);
+    lastIndex = re.lastIndex;
+  }
+  out += aiEscapeHtml(text.slice(lastIndex));
+  return out;
+}
+function aiRenderHighlight(text, topFeatures, caption) {
+  if (!topFeatures.length) return '';
+  return '<div class="ai-highlight-box"><div class="ai-highlight-caption">' + caption + '</div>' +
+    '<div class="ai-highlight-text">' + aiHighlightWords(text, topFeatures) + '</div></div>';
+}
+
 function aiRenderBars(probs, labels, order) {
   return order.map(c => {
     const pct = Math.round(probs[c] * 1000) / 10;
@@ -1342,7 +1372,7 @@ function aiAnalyzeMessage(inputId, outId) {
     : '<div class="alert alert-error">🚨 ИИ обнаружил признаки: <b>' + meta.label + '</b> (уверенность ' + confidence + '%).</div>';
   out.innerHTML = verdict +
     '<div style="margin-top:10px;">' + aiRenderBars(res.probs, AI_MSG_LABELS, order) + '</div>' +
-    (res.topFeatures.length ? '<div style="margin-top:8px; font-size:0.85rem; color:var(--text-dim);">Слова, повлиявшие на решение ИИ: <b>' + res.topFeatures.join(', ') + '</b></div>' : '') +
+    aiRenderHighlight(text, res.topFeatures, '🔍 Слова, повлиявшие на решение ИИ (выделены в тексте):') +
     aiRenderAgreement(res);
 }
 
@@ -1357,7 +1387,7 @@ function aiAnalyzeOsint(inputId, outId) {
     ? '<div class="alert alert-success">✅ ИИ не выявил признаков оперативной утечки в описании.</div>'
     : '<div class="alert alert-error">🚨 ИИ считает публикацию рискованной: вероятность утечки ' + riskPct + '%.</div>';
   out.innerHTML = verdict + '<div style="margin-top:10px;">' + aiRenderBars(res.probs, AI_OSINT_LABELS, order) + '</div>' +
-    (res.topFeatures.length ? '<div style="margin-top:8px; font-size:0.85rem; color:var(--text-dim);">На это обратил внимание ИИ: <b>' + res.topFeatures.join(', ') + '</b></div>' : '') +
+    aiRenderHighlight(text, res.topFeatures, '🔍 На это обратил внимание ИИ (выделено в тексте):') +
     aiRenderAgreement(res);
 }
 

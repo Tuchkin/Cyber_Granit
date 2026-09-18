@@ -84,13 +84,14 @@ def build_js_harness(script_code, payload):
         "global.window = {scrollTo(){}};\n"
         + script_code
         + "\nconst testData = " + json.dumps(payload, ensure_ascii=False) + ";\n"
-        "const out = {messages: [], osint: [], passwords: [], ensemble_messages: [], ensemble_osint: [], chat: []};\n"
+        "const out = {messages: [], osint: [], passwords: [], ensemble_messages: [], ensemble_osint: [], chat: [], highlights: []};\n"
         "testData.messages.forEach(t => { const r = aiPredictNB(AI_MSG_MODEL, t); out.messages.push({topClass: r.topClass, probs: r.probs}); });\n"
         "testData.osint.forEach(t => { const r = aiPredictNB(AI_OSINT_MODEL, t); out.osint.push({topClass: r.topClass, probs: r.probs}); });\n"
         "testData.passwords.forEach(p => { out.passwords.push(aiPasswordPredictability(AI_PWD_MODEL, p)); });\n"
         "testData.messages.forEach(t => { const r = aiPredictEnsemble(AI_MSG_MODEL, AI_MSG_LOGREG_MODEL, t); out.ensemble_messages.push({topClass: r.topClass, probs: r.probs, agree: r.agree}); });\n"
         "testData.osint.forEach(t => { const r = aiPredictEnsemble(AI_OSINT_MODEL, AI_OSINT_LOGREG_MODEL, t); out.ensemble_osint.push({topClass: r.topClass, probs: r.probs, agree: r.agree}); });\n"
         "testData.chatQueries.forEach(q => { const r = aiChatAnswer(q[0]); out.chat.push({matched: r.matched, q: r.matched ? r.q : null}); });\n"
+        "testData.messages.forEach(t => { const r = aiPredictEnsemble(AI_MSG_MODEL, AI_MSG_LOGREG_MODEL, t); out.highlights.push(aiHighlightWords(t, r.topFeatures)); });\n"
         "console.log(JSON.stringify(out));\n"
     )
 
@@ -155,6 +156,13 @@ def main():
         if py["top_class"] != js["topClass"]:
             errors.append(f"ensemble_osint[{i}] top_class mismatch: py={py['top_class']} js={js['topClass']}")
 
+    for i, text in enumerate(TEST_MESSAGES):
+        py_ens = eng.predict_ensemble(msg_model, msg_logreg, text)
+        py_html = eng.highlight_words(text, py_ens["top_features"])
+        js_html = js_result["highlights"][i]
+        if py_html != js_html:
+            errors.append(f"highlight[{i}] mismatch:\n  py={py_html!r}\n  js={js_html!r}")
+
     for i, (query, should_match) in enumerate(CHAT_QUERIES):
         py = eng.chat_answer(CHAT_KB, chat_index, query)
         js = js_result["chat"][i]
@@ -174,6 +182,7 @@ def main():
     print(
         f"Parity OK: {len(TEST_MESSAGES)} messages, {len(TEST_OSINT)} osint-descriptions, "
         f"{len(TEST_PASSWORDS)} passwords, NB+LogReg ensemble on both classifiers, "
+        f"inline trigger-word highlighting, "
         f"{len(CHAT_QUERIES)} chat queries (incl. off-topic rejection) — "
         f"Python and embedded JavaScript agree."
     )
