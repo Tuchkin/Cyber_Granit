@@ -175,6 +175,7 @@
   <button id="nav-btn-passwords" onclick="showPage('passwords',this)">🔐 Пароль-контроль</button>
   <button id="nav-btn-phishing" onclick="showPage('phishing',this)">🎣 Анти-Фишинг</button>
   <button id="nav-btn-ai" onclick="showPage('ai',this)">🤖 ИИ-Ассистент</button>
+  <button id="nav-btn-game" onclick="showPage('game',this)">🎮 ИИ против Тебя</button>
   <button id="nav-btn-polygon" onclick="showPage('polygon',this)">🎯 Кибер-Полигон</button>
   <hr>
   <div class="sidebar-qr" onclick="navigateTo('ai')" title="Открыть раздел ИИ-Ассистент">
@@ -240,6 +241,12 @@
       <div class="nav-card-icon">🤖</div>
       <div class="nav-card-title">ИИ-Ассистент</div>
       <div class="nav-card-desc">5 офлайн ИИ-моделей: анализатор угроз, OSINT-скоринг, консультант — работает без интернета.</div>
+    </div>
+    <div class="nav-card nav-card-highlight" onclick="navigateTo('game')">
+      <div class="nav-card-badge">НОВОЕ</div>
+      <div class="nav-card-icon">🎮</div>
+      <div class="nav-card-title">ИИ против Тебя</div>
+      <div class="nav-card-desc">Мини-игра: угадай тип угрозы и сравни свой счёт с тем же ИИ-классификатором.</div>
     </div>
     <div class="nav-card nav-card-highlight" onclick="navigateTo('polygon')">
       <div class="nav-card-icon">🎯</div>
@@ -686,11 +693,8 @@
     </div>
   </div>
 
-  <hr>
-  <h2>🎮 Мини-игра «ИИ против Тебя»</h2>
-  <p>10 сообщений в стиле реальных угроз для ВПК — сможешь определить тип угрозы точнее, чем ИИ-классификатор? Выбери вариант, затем сравни свой ответ с вердиктом ИИ.</p>
-  <div class="ai-box" id="ai-game-box">
-    <div id="ai-game-content"></div>
+  <div class="alert alert-info" style="margin-top:16px; cursor:pointer;" onclick="navigateTo('game')">
+    🎮 Хочешь проверить, насколько хорошо ты сам распознаёшь угрозы? Сыграй в мини-игру <b>«ИИ против Тебя»</b> — сравни свой счёт с этим же классификатором →
   </div>
 
   <hr>
@@ -715,6 +719,17 @@
   <div class="img-wrap-narrow">
     <img src="images/telegram-bot-qr.png" alt="QR-код Telegram-бота" onerror="this.parentNode.innerHTML='<div class=\'img-missing\'>⚠️ QR-код появится после публикации бота — см. telegram_bot/README.md</div>'">
     <div class="cap">Отсканируйте, чтобы открыть Telegram-бота «Кибер-Гранит.ИИ» (нужен интернет)</div>
+  </div>
+</div>
+
+
+<!-- =============================== МИНИ-ИГРА «ИИ ПРОТИВ ТЕБЯ» =============================== -->
+<div class="page" id="page-game">
+  <h1>🎮 Мини-игра «ИИ против Тебя»</h1>
+  <h3>Проверь себя против того же ИИ-классификатора, что работает в разделе «ИИ-Ассистент»</h3>
+  <p>10 сообщений в стиле реальных угроз для ВПК — с заранее известным правильным ответом. На каждом раунде ты выбираешь тип угрозы, а затем тот же ИИ-классификатор (ансамбль наивного байеса и логистической регрессии) независимо анализирует то же сообщение. Оба ответа сравниваются с правильным — честное сравнение, а не имитация.</p>
+  <div class="ai-box" id="ai-game-box">
+    <div id="ai-game-content"></div>
   </div>
 </div>
 
