@@ -16,11 +16,16 @@
 import json
 import os
 import re
+import sys
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 HTML_PATH = os.path.join(os.path.dirname(BASE_DIR), "Cyber_Granit.html")
 START_MARKER = "/*__AI_MODELS_START__*/"
 END_MARKER = "/*__AI_MODELS_END__*/"
+
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
+from datasets import CHAT_KB  # noqa: E402
 
 MODELS = [
     ("AI_MSG_MODEL", "message_classifier.json"),
@@ -54,6 +59,13 @@ def main():
         total_kb += len(dumped) / 1024
         lines.append(f"const {const_name} = {dumped};")
 
+    # База знаний ИИ-консультанта — единый источник правды datasets.CHAT_KB
+    # (раньше была вручную продублирована прямо в HTML — риск рассинхронизации
+    # с Python-версией; теперь генерируется отсюда же, что и модели).
+    chat_kb_dumped = json.dumps(CHAT_KB, ensure_ascii=False)
+    total_kb += len(chat_kb_dumped) / 1024
+    lines.append(f"const AI_CHAT_KB = {chat_kb_dumped};")
+
     snippet = START_MARKER + "\n" + "\n".join(lines) + "\n" + END_MARKER
 
     pattern = re.escape(START_MARKER) + r".*?" + re.escape(END_MARKER)
@@ -64,7 +76,7 @@ def main():
     with open(HTML_PATH, "w", encoding="utf-8") as f:
         f.write(html)
 
-    print(f"Встроено {len(MODELS)} моделей в {HTML_PATH} ({total_kb:.1f} КБ).")
+    print(f"Встроено {len(MODELS)} моделей + база знаний ({len(CHAT_KB)} Q&A) в {HTML_PATH} ({total_kb:.1f} КБ).")
 
 
 if __name__ == "__main__":
