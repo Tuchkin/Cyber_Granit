@@ -687,6 +687,13 @@
   </div>
 
   <hr>
+  <h2>🎮 Мини-игра «ИИ против Тебя»</h2>
+  <p>10 сообщений в стиле реальных угроз для ВПК — сможешь определить тип угрозы точнее, чем ИИ-классификатор? Выбери вариант, затем сравни свой ответ с вердиктом ИИ.</p>
+  <div class="ai-box" id="ai-game-box">
+    <div id="ai-game-content"></div>
+  </div>
+
+  <hr>
   <h2>⚙️ Как это устроено (прозрачность ИИ)</h2>
   <div class="cols2">
     <div>
@@ -1516,6 +1523,86 @@ function aiChatAsk(text) {
 }
 
 // ============================================================
+// МИНИ-ИГРА «ИИ ПРОТИВ ТЕБЯ»
+// 10 сообщений с заранее известным правильным ответом. На каждом раунде
+// и человек, и ИИ-классификатор (тот же aiPredictEnsemble, что и в разделе
+// выше) отвечают независимо и сравниваются с правильным ответом — это
+// честное сравнение, а не имитация.
+// ============================================================
+const AI_GAME_QUESTIONS = [
+  { text: 'Уважаемый пользователь, ваш профиль ВКонтакте временно заблокирован. Для восстановления перейдите по ссылке и подтвердите данные банковской карты в течение 24 часов.', label: 'phishing' },
+  { text: 'Служба поддержки Telegram сообщает: обнаружена попытка взлома вашего аккаунта. Отправьте код из СМС для отмены входа.', label: 'phishing' },
+  { text: 'Уважаемый воспитанник, для продления доступа к личному кабинету портала введите пароль по ссылке ниже — иначе аккаунт удалят через 3 часа.', label: 'phishing' },
+  { text: 'Здравствуйте, я новый корреспондент областной газеты, готовлю материал про ваш взвод — можете скинуть численность личного состава и график построений?', label: 'social_engineering' },
+  { text: 'Братан, заплачу 50 долларов если пришлёшь фото пропуска на КПП и расскажешь, где стоит техника — никто не узнает.', label: 'social_engineering' },
+  { text: 'ВНИМАНИЕ! По непроверенным данным завтра всех курсантов направляют на границу без предупреждения родителей! Передайте всем срочно!', label: 'ipso_fake' },
+  { text: 'Источник в штабе сообщает, что клуб закрывают из-за нехватки денег — успейте забрать личные вещи до пятницы!', label: 'ipso_fake' },
+  { text: 'Напоминаю, завтра в 9:00 построение на плацу, форма номер два.', label: 'safe' },
+  { text: 'Тренировка в субботу переносится на 10:00, форма спортивная.', label: 'safe' },
+  { text: 'Молодцы сегодня на полосе препятствий! Итоги — на стенде в понедельник.', label: 'safe' },
+];
+let aiGameIndex = 0, aiGameUserScore = 0, aiGameAiScore = 0, aiGameAnswered = false;
+
+function aiGameLabelName(c) { return AI_MSG_LABELS[c] ? AI_MSG_LABELS[c].label : c; }
+
+function aiGameStart() {
+  aiGameIndex = 0; aiGameUserScore = 0; aiGameAiScore = 0; aiGameAnswered = false;
+  aiGameRender();
+}
+
+function aiGameRender() {
+  const el = document.getElementById('ai-game-content');
+  if (!el) return;
+  if (aiGameIndex >= AI_GAME_QUESTIONS.length) { aiGameRenderResults(el); return; }
+  const q = AI_GAME_QUESTIONS[aiGameIndex];
+  const order = ['phishing', 'social_engineering', 'ipso_fake', 'safe'];
+  let html = '<div style="font-size:0.85rem; color:var(--text-dim); margin-bottom:8px;">Вопрос ' + (aiGameIndex + 1) + ' из ' + AI_GAME_QUESTIONS.length + ' · Ты: <b>' + aiGameUserScore + '</b> · ИИ: <b>' + aiGameAiScore + '</b></div>';
+  html += '<div class="ai-highlight-text" style="background:var(--bg3); border:1px solid var(--border); border-radius:8px; padding:12px 14px; margin-bottom:12px;">' + aiEscapeHtml(q.text) + '</div>';
+  html += '<div style="font-size:0.85rem; color:var(--text-dim); margin-bottom:6px;">Как думаешь, что это?</div>';
+  html += '<div class="ai-suggest">';
+  order.forEach(c => { html += '<button class="btn" onclick="aiGameAnswer(\'' + c + '\')">' + aiGameLabelName(c) + '</button>'; });
+  html += '</div><div id="ai-game-feedback"></div>';
+  el.innerHTML = html;
+}
+
+function aiGameAnswer(userChoice) {
+  if (aiGameAnswered) return;
+  aiGameAnswered = true;
+  const q = AI_GAME_QUESTIONS[aiGameIndex];
+  const res = aiPredictEnsemble(AI_MSG_MODEL, AI_MSG_LOGREG_MODEL, q.text);
+  const userCorrect = userChoice === q.label;
+  const aiCorrect = res.topClass === q.label;
+  if (userCorrect) aiGameUserScore++;
+  if (aiCorrect) aiGameAiScore++;
+  const conf = Math.round(res.probs[res.topClass] * 1000) / 10;
+  const fb = document.getElementById('ai-game-feedback');
+  fb.innerHTML = '<div style="margin-top:6px;">' +
+    '<div>Правильный ответ: <b>' + aiGameLabelName(q.label) + '</b></div>' +
+    '<div>Твой ответ: <b style="color:' + (userCorrect ? 'var(--accent)' : 'var(--red)') + ';">' + aiGameLabelName(userChoice) + (userCorrect ? ' ✅' : ' ❌') + '</b></div>' +
+    '<div>Ответ ИИ: <b style="color:' + (aiCorrect ? 'var(--accent)' : 'var(--red)') + ';">' + aiGameLabelName(res.topClass) + (aiCorrect ? ' ✅' : ' ❌') + '</b> (уверенность ' + conf + '%)</div>' +
+    '<button class="btn btn-primary" style="margin-top:10px;" onclick="aiGameNext()">' + (aiGameIndex + 1 < AI_GAME_QUESTIONS.length ? 'Следующий вопрос ➡️' : 'Итоги игры 🏁') + '</button>' +
+    '</div>';
+}
+
+function aiGameNext() {
+  aiGameIndex++;
+  aiGameAnswered = false;
+  aiGameRender();
+}
+
+function aiGameRenderResults(el) {
+  const total = AI_GAME_QUESTIONS.length;
+  let verdict;
+  if (aiGameUserScore > aiGameAiScore) verdict = '🏆 Ты обыграл ИИ-классификатор!';
+  else if (aiGameUserScore < aiGameAiScore) verdict = '🤖 В этот раз ИИ оказался точнее — но теперь ты знаешь, на какие признаки обращать внимание.';
+  else verdict = '🤝 Ничья — ты и ИИ справились одинаково!';
+  el.innerHTML = '<div class="alert alert-info"><h3 style="margin-top:0;">Итоги игры</h3>' +
+    '<p>Твой счёт: <b>' + aiGameUserScore + ' из ' + total + '</b><br>Счёт ИИ: <b>' + aiGameAiScore + ' из ' + total + '</b></p>' +
+    '<p>' + verdict + '</p>' +
+    '<button class="btn btn-primary" onclick="aiGameStart()">🔁 Сыграть ещё раз</button></div>';
+}
+
+// ============================================================
 // ИНСТРУМЕНТ АНАЛИЗА EXIF/GPS
 // Честный разбор бинарного формата JPEG «с нуля» (без библиотек) —
 // НЕ искусственный интеллект, а классический парсинг структуры файла.
@@ -1675,6 +1762,7 @@ function exifTryExample() {
 
 // Init quest on load
 renderQuest();
+aiGameStart();
 </script>
 </body>
 </html>

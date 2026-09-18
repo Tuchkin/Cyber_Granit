@@ -6,6 +6,7 @@ import time
 import os
 import sys
 import json
+import html
 import streamlit.components.v1 as components
 
 # Определение базовой директории скрипта и папки с картинками
@@ -110,6 +111,114 @@ def ai_render_osint_result(text):
         st.progress(res["probs"][c], text=f"{AI_OSINT_LABELS[c]}: {round(res['probs'][c]*100,1)}%")
     _ai_render_highlight(text, res["top_features"], "🔍 На это обратил внимание ИИ (выделено в тексте):")
     _ai_render_agreement(res, AI_OSINT_LABELS)
+
+
+# ---------------------------------------------------------------------------
+# Мини-игра «ИИ против Тебя» — те же 10 вопросов и правильные ответы, что и
+# в Cyber_Granit.html (aiGame*), человек и ИИ-классификатор (aiPredictEnsemble)
+# отвечают независимо и сравниваются с заранее известным правильным ответом.
+# ---------------------------------------------------------------------------
+AI_GAME_QUESTIONS = [
+    {"text": "Уважаемый пользователь, ваш профиль ВКонтакте временно заблокирован. Для восстановления перейдите по ссылке и подтвердите данные банковской карты в течение 24 часов.", "label": "phishing"},
+    {"text": "Служба поддержки Telegram сообщает: обнаружена попытка взлома вашего аккаунта. Отправьте код из СМС для отмены входа.", "label": "phishing"},
+    {"text": "Уважаемый воспитанник, для продления доступа к личному кабинету портала введите пароль по ссылке ниже — иначе аккаунт удалят через 3 часа.", "label": "phishing"},
+    {"text": "Здравствуйте, я новый корреспондент областной газеты, готовлю материал про ваш взвод — можете скинуть численность личного состава и график построений?", "label": "social_engineering"},
+    {"text": "Братан, заплачу 50 долларов если пришлёшь фото пропуска на КПП и расскажешь, где стоит техника — никто не узнает.", "label": "social_engineering"},
+    {"text": "ВНИМАНИЕ! По непроверенным данным завтра всех курсантов направляют на границу без предупреждения родителей! Передайте всем срочно!", "label": "ipso_fake"},
+    {"text": "Источник в штабе сообщает, что клуб закрывают из-за нехватки денег — успейте забрать личные вещи до пятницы!", "label": "ipso_fake"},
+    {"text": "Напоминаю, завтра в 9:00 построение на плацу, форма номер два.", "label": "safe"},
+    {"text": "Тренировка в субботу переносится на 10:00, форма спортивная.", "label": "safe"},
+    {"text": "Молодцы сегодня на полосе препятствий! Итоги — на стенде в понедельник.", "label": "safe"},
+]
+
+
+def _ai_game_init_state():
+    if "game_index" not in st.session_state:
+        st.session_state.game_index = 0
+        st.session_state.game_user_score = 0
+        st.session_state.game_ai_score = 0
+        st.session_state.game_answered = False
+        st.session_state.game_last_result = None
+
+
+def _ai_game_restart():
+    st.session_state.game_index = 0
+    st.session_state.game_user_score = 0
+    st.session_state.game_ai_score = 0
+    st.session_state.game_answered = False
+    st.session_state.game_last_result = None
+
+
+def _ai_game_answer(choice):
+    q = AI_GAME_QUESTIONS[st.session_state.game_index]
+    res = ai_engine.predict_ensemble(AI_MSG_MODEL, AI_MSG_LOGREG_MODEL, q["text"])
+    user_correct = choice == q["label"]
+    ai_correct = res["top_class"] == q["label"]
+    if user_correct:
+        st.session_state.game_user_score += 1
+    if ai_correct:
+        st.session_state.game_ai_score += 1
+    st.session_state.game_answered = True
+    st.session_state.game_last_result = {
+        "correct_label": q["label"], "user_choice": choice, "user_correct": user_correct,
+        "ai_choice": res["top_class"], "ai_correct": ai_correct,
+        "ai_conf": round(res["probs"][res["top_class"]] * 100, 1),
+    }
+
+
+def _ai_game_next():
+    st.session_state.game_index += 1
+    st.session_state.game_answered = False
+    st.session_state.game_last_result = None
+
+
+def render_ai_game():
+    _ai_game_init_state()
+    st.header("🎮 Мини-игра «ИИ против Тебя»")
+    st.write(
+        "10 сообщений в стиле реальных угроз для ВПК — сможешь определить тип угрозы "
+        "точнее, чем ИИ-классификатор? Выбери вариант, затем сравни свой ответ с вердиктом ИИ."
+    )
+    total = len(AI_GAME_QUESTIONS)
+
+    if st.session_state.game_index >= total:
+        st.markdown(f"**Итоги игры**  \nТвой счёт: **{st.session_state.game_user_score} из {total}**  \nСчёт ИИ: **{st.session_state.game_ai_score} из {total}**")
+        if st.session_state.game_user_score > st.session_state.game_ai_score:
+            st.success("🏆 Ты обыграл ИИ-классификатор!")
+        elif st.session_state.game_user_score < st.session_state.game_ai_score:
+            st.warning("🤖 В этот раз ИИ оказался точнее — но теперь ты знаешь, на какие признаки обращать внимание.")
+        else:
+            st.info("🤝 Ничья — ты и ИИ справились одинаково!")
+        if st.button("🔁 Сыграть ещё раз", key="game_restart"):
+            _ai_game_restart()
+            st.rerun()
+        return
+
+    q = AI_GAME_QUESTIONS[st.session_state.game_index]
+    st.caption(f"Вопрос {st.session_state.game_index + 1} из {total} · Ты: {st.session_state.game_user_score} · ИИ: {st.session_state.game_ai_score}")
+    st.markdown(
+        f'<div style="background:#1e1e1e; border:1px solid #333; border-radius:8px; '
+        f'padding:12px 14px; margin-bottom:10px; color:#fff;">{html.escape(q["text"])}</div>',
+        unsafe_allow_html=True,
+    )
+
+    if not st.session_state.game_answered:
+        st.write("Как думаешь, что это?")
+        order = ["phishing", "social_engineering", "ipso_fake", "safe"]
+        cols = st.columns(len(order))
+        for col, c in zip(cols, order):
+            if col.button(AI_MSG_LABELS[c], key=f"game_choice_{c}_{st.session_state.game_index}"):
+                _ai_game_answer(c)
+                st.rerun()
+    else:
+        r = st.session_state.game_last_result
+        st.write(f"Правильный ответ: **{AI_MSG_LABELS[r['correct_label']]}**")
+        st.write(("✅" if r["user_correct"] else "❌") + f" Твой ответ: **{AI_MSG_LABELS[r['user_choice']]}**")
+        st.write(("✅" if r["ai_correct"] else "❌") + f" Ответ ИИ: **{AI_MSG_LABELS[r['ai_choice']]}** (уверенность {r['ai_conf']}%)")
+        btn_label = "Следующий вопрос ➡️" if st.session_state.game_index + 1 < total else "Итоги игры 🏁"
+        if st.button(btn_label, key=f"game_next_{st.session_state.game_index}"):
+            _ai_game_next()
+            st.rerun()
 
 
 def _render_telegram_section(heading_size="header"):
@@ -1285,6 +1394,9 @@ def page_ai():
                 st.markdown(f"**🤖 ИИ** _(похожий вопрос в базе: «{payload['q']}»)_:  \n{payload['text']}")
             else:
                 st.markdown(f"**🤖 ИИ:** {payload['text']}")
+
+    st.markdown("---")
+    render_ai_game()
 
     st.markdown("---")
     st.header("⚙️ Как это устроено (прозрачность ИИ)")
