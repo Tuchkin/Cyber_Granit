@@ -7,11 +7,13 @@ import os
 import sys
 import json
 import html
+import base64
 import streamlit.components.v1 as components
 
 # Определение базовой директории скрипта и папки с картинками
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 IMAGES_DIR = os.path.join(BASE_DIR, "images")
+FONTS_DIR = os.path.join(BASE_DIR, "fonts")
 AI_MODELS_DIR = os.path.join(BASE_DIR, "ai_models")
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
@@ -256,9 +258,43 @@ def _ai_example_buttons(key, examples):
 # --- НАСТРОЙКИ СТРАНИЦЫ И СТИЛИ ---
 st.set_page_config(page_title="Кибер-Гранит | ВПК", page_icon="🛡️", layout="wide")
 
+
+def _load_emoji_font_b64():
+    """Шрифт-подмножество Noto Color Emoji (только используемые в проекте иконки,
+    ~48 КБ) — на некоторых компьютерах в системе нет цветного эмодзи-шрифта, и
+    иконки в разделах превращаются в случайные значки. Встраиваем как data:URI,
+    чтобы работало без отдельного HTTP-сервера статики Streamlit."""
+    path = os.path.join(FONTS_DIR, "project-emoji.woff2")
+    try:
+        with open(path, "rb") as f:
+            return base64.b64encode(f.read()).decode("ascii")
+    except OSError:
+        return ""
+
+
+_EMOJI_FONT_B64 = _load_emoji_font_b64()
+_EMOJI_UNICODE_RANGE = (
+    "U+00A9, U+200D, U+2139, U+2642, U+2696, U+2699, U+26A0, U+2705, U+2709, "
+    "U+274C, U+27A1, U+FE0F, U+1F31F, U+1F396, U+1F399, U+1F3A3, U+1F3AD, "
+    "U+1F3AE, U+1F3AF, U+1F3C1, U+1F3C6, U+1F3E0, U+1F441, U+1F448, U+1F4A1, "
+    "U+1F4A5, U+1F4AC, U+1F4BB, U+1F4C2, U+1F4CA, U+1F4CD, U+1F4DA, U+1F4E2, "
+    "U+1F4F1, U+1F4F5, U+1F4F8, U+1F501, U+1F504, U+1F50D, U+1F50E, U+1F510, "
+    "U+1F511, U+1F512, U+1F525, U+1F52C, U+1F534, U+1F53A, U+1F575, U+1F5C4, "
+    "U+1F5E8, U+1F6A8, U+1F6E0, U+1F6E1, U+1F7E0, U+1F7E1, U+1F7E2, U+1F914, "
+    "U+1F916, U+1F91D, U+1F9A0, U+1F9D1, U+1F9E0, U+1F9E9, U+1F9ED, U+1FA96"
+)
+_emoji_font_face = (
+    f"@font-face {{ font-family: 'ProjectEmoji'; "
+    f"src: url(data:font/woff2;base64,{_EMOJI_FONT_B64}) format('woff2'); "
+    f"unicode-range: {_EMOJI_UNICODE_RANGE}; font-display: swap; }}"
+    if _EMOJI_FONT_B64 else ""
+)
+
 # Применяем кастомные стили для стилистики милитари/защиты
 st.markdown("""
 <style>
+""" + _emoji_font_face + """
+    html, body, [class*="css"] { font-family: 'ProjectEmoji', 'Segoe UI', Arial, sans-serif; }
     .main {background-color: #0e1117;}
     h1, h2, h3 {color: #4CAF50;}
     .stAlert {background-color: #1e1e1e; color: #ffffff;}

@@ -20,7 +20,19 @@
     --accent: #3fb950;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', Arial, sans-serif; display: flex; min-height: 100vh; }
+  /* Встроенный шрифт для эмодзи-иконок (Noto Color Emoji, обрезан только до нужных
+     символов, ~48 КБ) — на некоторых компьютерах в системе нет цветного эмодзи-шрифта
+     или ОС подставляет вместо него нерабочий символьный шрифт, и иконки в разделах
+     превращаются в случайные значки. unicode-range гарантирует, что этот шрифт
+     используется ТОЛЬКО для конкретных эмодзи, а весь остальной текст остаётся
+     на обычном системном шрифте. */
+  @font-face {
+    font-family: 'ProjectEmoji';
+    src: url('fonts/project-emoji.woff2') format('woff2');
+    unicode-range: U+00A9, U+200D, U+2139, U+2642, U+2696, U+2699, U+26A0, U+2705, U+2709, U+274C, U+27A1, U+FE0F, U+1F31F, U+1F396, U+1F399, U+1F3A3, U+1F3AD, U+1F3AE, U+1F3AF, U+1F3C1, U+1F3C6, U+1F3E0, U+1F441, U+1F448, U+1F4A1, U+1F4A5, U+1F4AC, U+1F4BB, U+1F4C2, U+1F4CA, U+1F4CD, U+1F4DA, U+1F4E2, U+1F4F1, U+1F4F5, U+1F4F8, U+1F501, U+1F504, U+1F50D, U+1F50E, U+1F510, U+1F511, U+1F512, U+1F525, U+1F52C, U+1F534, U+1F53A, U+1F575, U+1F5C4, U+1F5E8, U+1F6A8, U+1F6E0, U+1F6E1, U+1F7E0, U+1F7E1, U+1F7E2, U+1F914, U+1F916, U+1F91D, U+1F9A0, U+1F9D1, U+1F9E0, U+1F9E9, U+1F9ED, U+1FA96;
+    font-display: swap;
+  }
+  body { background: var(--bg); color: var(--text); font-family: 'ProjectEmoji', 'Segoe UI', Arial, sans-serif; display: flex; min-height: 100vh; }
 
   /* SIDEBAR */
   #sidebar {
