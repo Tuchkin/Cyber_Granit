@@ -123,9 +123,43 @@ terminal.png, ai-password-strength-scan.png, osint-ai-photo-scanner.png)
    NOT vertical/portrait/phone-story. Horizontal orientation only."
 
 -----------------------------------------------------------------
+ВЫСОКИЙ ПРИОРИТЕТ (добавлено по замечанию рецензента — файл «Гранит
+замечания.docx»):
+
+6) legislation-belarus-cyber.png — на текущей картинке (обложка раздела
+   «Законодательство РБ») сгенерированы фуражка, ремень, погоны с
+   буквами «К» и нашивка с текстом «Ваенная акадэмія Рэспублікі
+   Беларусь» — нейросеть придумала этот шеврон сама, он не совпадает
+   с настоящей эмблемой академии. Раз проект теперь официально подаётся
+   от имени Военной академии РБ, использование выдуманного шеврона
+   рядом с её названием — репутационный риск, нейросеть его точно
+   перепутает. Ниже промт БЕЗ военной атрибутики вообще (книга,
+   голограмма герба и флаг — этого достаточно, реальную эмблему
+   академии подставлять не нужно, чтобы не выдавать нейросетевую
+   картинку за официальную символику).
+
+   ПРОМТ:
+   "A vintage leather-bound law book titled «ЗАКОНОДАТЕЛЬСТВО
+   РЕСПУБЛИКИ БЕЛАРУСЬ В КИБЕРСФЕРЕ» lying on a dark wooden desk, with
+   a glowing cyan holographic shield bearing the state emblem of the
+   Republic of Belarus projected above it, next to a translucent panel
+   of scrolling legal text in Russian. The flag of the Republic of
+   Belarus stands softly out of focus in the background. Cyan-blue
+   holographic light, cinematic lighting, hyper-detailed digital art,
+   dark official/government aesthetic. IMPORTANT: do NOT include any
+   military uniform items, insignia, cap, belt, shoulder boards
+   (погоны) or institute/unit patches of any kind — no military
+   academy emblem, no army clothing accessories anywhere in the frame.
+   Keep the scene limited to the book, the hologram and the flag only.
+   WIDE LANDSCAPE BANNER COMPOSITION, 16:9 horizontal aspect ratio —
+   frame the desk as a wide horizontal shot, NOT vertical/portrait/
+   phone-story. Horizontal orientation only."
+
+   Имя файла (перезаписать): legislation-belarus-cyber.png
+
 НЕОБЯЗАТЕЛЬНО (по желанию, низкий приоритет):
 
-5) stats-sectors-2025.png — на этой картинке текстом зашито «Позиция
+7) stats-sectors-2025.png — на этой картинке текстом зашито «Позиция
    Беларуси: 3-е место в СНГ по количеству кибератак». После проверки
    фактов оказалось, что по разным отчётам 2024–2025 гг. это 2-е или
    3-е место (точная цифра расходится по источникам), поэтому в тексте
