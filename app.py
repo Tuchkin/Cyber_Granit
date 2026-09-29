@@ -256,7 +256,7 @@ def _ai_example_buttons(key, examples):
 
 
 # --- НАСТРОЙКИ СТРАНИЦЫ И СТИЛИ ---
-st.set_page_config(page_title="Кибер-Гранит | ВПК", page_icon="🛡️", layout="wide")
+st.set_page_config(page_title="Кибер-Гранит.ИИ | ВПК", page_icon="🛡️", layout="wide")
 
 
 def _load_emoji_font_b64():
@@ -325,8 +325,8 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # PLACEHOLDER_NAVIGATION_START
-st.sidebar.title("🛡️ Кибер-Гранит")
-st.sidebar.markdown("**Учебный портал цифровой безопасности для ВПК**")
+st.sidebar.title("🛡️ Кибер-Гранит.ИИ")
+st.sidebar.markdown("**Автономный офлайн-портал цифровой безопасности и искусственного интеллекта для воспитанников военно-патриотических клубов**")
 st.sidebar.divider()
 
 st.sidebar.markdown("""
@@ -398,7 +398,7 @@ def page_home():
         st.error(f"Ошибка загрузки картинки: {e}")
 
     # Уменьшили размер заголовков и выровняли по центру
-    st.markdown("<h2 style='text-align: center;'>🛡️ Добро пожаловать на проект «Кибер-Гранит»</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center;'>🛡️ Добро пожаловать на проект «Кибер-Гранит.ИИ»</h2>", unsafe_allow_html=True)
     st.markdown("<h4 style='text-align: center; color: #bbbbbb;'>Твоя безопасность в сети — это безопасность твоего подразделения и твоей страны.</h4>", unsafe_allow_html=True)
     st.write("")
     
