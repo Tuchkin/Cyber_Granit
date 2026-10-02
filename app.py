@@ -747,7 +747,7 @@ def page_passwords():
 
     _ai_example_buttons("pwd_test_input", [
         ("⚠️ Пример: слабый пароль", "qwerty123"),
-        ("✅ Пример: сильная фраза", "Bronya_Granit_Rubezh_Sever_99!"),
+        ("✅ Пример: сильная фраза", "Tank_Pole_Krasny_Orel!99"),
     ])
     test_password = st.text_input("Введите тренировочный пароль:", type="default", placeholder="Например: MyP@ssw0rd!2024", key="pwd_test_input")
     
@@ -766,6 +766,7 @@ def page_passwords():
             
         st.metric(label="Примерное время на взлом (Брутфорс атака)", value=time_to_crack)
 
+        ai_pct = None
         if AI_AVAILABLE:
             ai_pct = ai_engine.score_password_predictability(AI_PWD_MODEL, test_password)
             st.metric(label="🧠 AI-оценка предсказуемости", value=f"{ai_pct}%")
@@ -781,8 +782,14 @@ def page_passwords():
             st.write("**Уязвимости вашего пароля:**")
             for f in feedback:
                 st.write(f)
+        # Итоговый вывод учитывает и формальные правила, и ИИ-оценку: пароль, который выдержит
+        # прямой перебор, всё равно может быстро подобраться атакой по словарю шаблонов.
+        elif score >= 80 and ai_pct is not None and ai_pct >= 65:
+            st.error("⚠️ Формально пароль проходит проверку, но по структуре похож на распространённые шаблоны — атака по словарю подберёт его гораздо быстрее, чем перебор. Придумайте другой.")
+        elif score >= 80 and ai_pct is not None and ai_pct >= 30:
+            st.warning("🟡 Прямой перебор этот пароль выдержит, но ИИ видит в нём узнаваемые фрагменты (слова, названия, годы) — такие пароли проверяют первыми при атаке по словарю. Убедитесь, что они не связаны с вами: не название клуба, не имя, не год.")
         elif score >= 80:
-            st.write("<span class='success-text'>✅ Отличная работа! Этот пароль выдержит любую атаку перебором.</span>", unsafe_allow_html=True)
+            st.write("<span class='success-text'>✅ Отличная работа! Пароль выдержит атаку перебором, и ИИ не находит в нём узнаваемых шаблонов.</span>", unsafe_allow_html=True)
             
     st.divider()
     

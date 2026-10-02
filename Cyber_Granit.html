@@ -530,7 +530,7 @@
 
   <div class="ai-suggest">
     <button class="btn" onclick="aiFillExample('pwd-input','qwerty123')">⚠️ Пример: слабый пароль</button>
-    <button class="btn" onclick="aiFillExample('pwd-input','Bronya_Granit_Rubezh_Sever_99!')">✅ Пример: сильная фраза</button>
+    <button class="btn" onclick="aiFillExample('pwd-input','Tank_Pole_Krasny_Orel!99')">✅ Пример: сильная фраза</button>
   </div>
   <label for="pwd-input" style="font-weight:600;">Введите тренировочный пароль:</label>
   <input class="pwd-input" id="pwd-input" type="text" placeholder="Например: MyP@ssw0rd!2024" oninput="analyzePassword(this.value)">
@@ -873,21 +873,29 @@ function analyzePassword(pwd) {
   }
   document.getElementById('pwd-time').textContent = timeToCrack;
 
+  // ---- AI-оценка предсказуемости (символьная n-граммная языковая модель) ----
+  const aiPct = aiPasswordPredictability(AI_PWD_MODEL, pwd);
+
+  // Итоговый вывод учитывает и формальные правила, и ИИ-оценку: пароль, который выдержит
+  // прямой перебор, всё равно может быстро подобраться атакой по словарю шаблонов.
   const fb = document.getElementById('pwd-feedback');
   if (feedback.length > 0) {
     fb.innerHTML = '<p style="margin-top:10px;font-weight:600;">Уязвимости вашего пароля:</p>' + feedback.map(f => '<p>' + f + '</p>').join('');
+  } else if (finalScore >= 80 && aiPct >= 65) {
+    fb.innerHTML = '<div class="alert alert-error" style="margin-top:8px;">⚠️ Формально пароль проходит проверку, но по структуре похож на распространённые шаблоны — атака по словарю подберёт его гораздо быстрее, чем перебор. Придумайте другой.</div>';
+  } else if (finalScore >= 80 && aiPct >= 30) {
+    fb.innerHTML = '<div class="alert alert-warning" style="margin-top:8px;">🟡 Прямой перебор этот пароль выдержит, но ИИ видит в нём узнаваемые фрагменты (слова, названия, годы) — такие пароли проверяют первыми при атаке по словарю. Убедитесь, что они не связаны с вами: не название клуба, не имя, не год.</div>';
   } else if (finalScore >= 80) {
-    fb.innerHTML = '<div class="alert alert-success" style="margin-top:8px;">✅ Отличная работа! Этот пароль выдержит любую атаку перебором.</div>';
+    fb.innerHTML = '<div class="alert alert-success" style="margin-top:8px;">✅ Отличная работа! Пароль выдержит атаку перебором, и ИИ не находит в нём узнаваемых шаблонов.</div>';
   } else {
     fb.innerHTML = '';
   }
 
-  // ---- AI-оценка предсказуемости (символьная n-граммная языковая модель) ----
-  const aiPct = aiPasswordPredictability(AI_PWD_MODEL, pwd);
   document.getElementById('pwd-ai-val').textContent = aiPct + '%';
   const aiBar = document.getElementById('pwd-ai-bar');
   aiBar.style.width = aiPct + '%';
   aiBar.style.background = aiPct < 30 ? '#3fb950' : aiPct < 65 ? '#d29922' : '#f85149';
+  document.getElementById('pwd-ai-val').style.color = aiBar.style.background;
   const aiNote = document.getElementById('pwd-ai-note');
   if (aiPct >= 65) {
     aiNote.innerHTML = '⚠️ ИИ-модель (обучена на типовых слабых паролях) считает этот пароль похожим на распространённые шаблоны — даже если формально он проходит проверку по длине и составу символов.';
