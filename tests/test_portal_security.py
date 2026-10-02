@@ -8,10 +8,13 @@
    и «дата съемки» только как текст. Тест собирает настоящий JPEG, в EXIF которого вместо
    модели камеры записан HTML-код, и прогоняет его через exifParse и exifRenderResult.
 3. Остальные пути вывода пользовательского текста (подсветка слов в анализаторе) экранируются.
+4. Целостность ИИ-модуля: веса, встроенные в HTML, совпадают с эталонными файлами ai_models/*.json
+   (сравниваются SHA-256 канонической записи JSON).
 
 Запуск: python tests/test_portal_security.py [путь к html]   (требует установленный Node.js)
 """
 import base64
+import hashlib
 import json
 import os
 import re
@@ -46,6 +49,34 @@ def jpeg_with_exif(make, model, date_time):
     return b"\xff\xd8" + b"\xff\xe1" + struct.pack(">H", len(app1) + 2) + app1 + b"\xff\xd9"
 
 
+WEIGHTS = [
+    ("AI_MSG_MODEL", "message_classifier.json"),
+    ("AI_MSG_LOGREG_MODEL", "message_classifier_logreg.json"),
+    ("AI_OSINT_MODEL", "osint_risk_classifier.json"),
+    ("AI_OSINT_LOGREG_MODEL", "osint_risk_classifier_logreg.json"),
+    ("AI_PWD_MODEL", "password_ngram.json"),
+]
+
+
+def sha256_json(obj):
+    return hashlib.sha256(json.dumps(obj, ensure_ascii=False, sort_keys=True,
+                                     separators=(",", ":")).encode("utf-8")).hexdigest()
+
+
+def check_weights(html):
+    errors = []
+    for const, name in WEIGHTS:
+        m = re.search(r"^const " + const + r" = (.*);$", html, re.M)
+        if not m:
+            errors.append(f"в HTML нет весов {const}")
+            continue
+        with open(os.path.join(BASE, "ai_models", name), encoding="utf-8") as f:
+            ref = json.load(f)
+        if sha256_json(json.loads(m.group(1))) != sha256_json(ref):
+            errors.append(f"веса {const} в HTML не совпадают с ai_models/{name}")
+    return errors
+
+
 def check_csp(html):
     m = re.search(r'<meta http-equiv="Content-Security-Policy" content="([^"]+)"', html)
     if not m:
@@ -67,7 +98,7 @@ def check_csp(html):
 def main():
     with open(HTML_PATH, encoding="utf-8") as f:
         html = f.read()
-    errors = check_csp(html)
+    errors = check_csp(html) + check_weights(html)
 
     cases = []
     for i, p in enumerate(PAYLOADS):
@@ -112,7 +143,8 @@ def main():
             print(" -", e)
         sys.exit(1)
     print(f"Portal security OK: CSP без сетевых соединений; {len(res['exif'])} вредоносных EXIF-файлов "
-          f"и {len(res['highlight'])} сообщений выведены только как текст")
+          f"и {len(res['highlight'])} сообщений выведены только как текст; "
+          f"веса {len(WEIGHTS)} моделей совпадают с эталоном (SHA-256)")
 
 
 if __name__ == "__main__":

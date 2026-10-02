@@ -87,7 +87,8 @@ tests/
   test_ai_parity.py           — сверяет Python- и JS-версии моделей на контрольных примерах
   test_build.py                — дымовой тест обучения (accuracy не ниже порога)
   test_ai_parity_full.py       — полная сверка Python и JS на всех данных проекта
-  test_portal_security.py      — политика CSP и защита от внедрения кода через EXIF-метаданные фото
+  test_portal_security.py      — политика CSP, защита от внедрения кода через EXIF-метаданные фото,
+                                  совпадение встроенных весов моделей с эталоном (SHA-256)
 telegram_bot/                — онлайн-режим (см. выше), требует интернет, не входит в офлайн-ядро
   bot.py, generate_qr.py, requirements.txt, README.md
 .github/workflows/ci.yml    — GitHub Actions: тесты гоняются на каждый push
