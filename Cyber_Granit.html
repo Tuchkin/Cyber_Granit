@@ -3,6 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- Политика безопасности контента: портал открывается как локальный файл и берет картинки и шрифт
+     только из своих папок (file:). Источник 'self' не используется: WebKit для file:// считает
+     «своими» любые адреса.
+     Любые сетевые соединения из страницы (fetch, XHR, WebSocket, sendBeacon, внешние картинки,
+     фреймы, отправка форм) запрещены браузером, даже если в код попадет чужой скрипт. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src file: data:; font-src file:; connect-src 'none'; media-src 'none'; object-src 'none'; frame-src 'none'; worker-src 'none'; form-action 'none'; base-uri 'none'">
 <title>Кибер-Гранит.ИИ | ВПК</title>
 <style>
   :root {
@@ -62,6 +68,8 @@
 
   /* MAIN */
   #main { flex: 1; padding: 32px 40px; max-width: 960px; }
+  /* средние экраны (планшет, узкое окно): без горизонтальной прокрутки */
+  @media(min-width:701px) and (max-width:900px){ #sidebar{ width:220px; min-width:220px; } #main{ padding:24px 16px; } }
   .page { display: none; }
   .page.active { display: block; }
 
@@ -1750,8 +1758,10 @@ function exifRenderResult(out, res, sourceNote) {
     html += '<div class="alert alert-success">✅ GPS-координаты в файле не найдены.</div>';
   }
   const meta = [];
-  if (res.make || res.model) meta.push('камера/устройство: ' + [res.make, res.model].filter(Boolean).join(' '));
-  if (res.dateTime) meta.push('дата съёмки: ' + res.dateTime);
+  // Поля EXIF записаны в файле кем угодно: выводим их только как текст, иначе фото с «камерой»
+  // вида <img onerror=...> исполнит чужой код на странице (XSS через метаданные).
+  if (res.make || res.model) meta.push('камера/устройство: ' + aiEscapeHtml([res.make, res.model].filter(Boolean).join(' ')));
+  if (res.dateTime) meta.push('дата съёмки: ' + aiEscapeHtml(res.dateTime));
   if (meta.length) {
     html += '<div class="alert alert-info" style="margin-top:8px;">ℹ️ Дополнительно в метаданных: ' + meta.join('; ') + '.</div>';
   }
@@ -1768,7 +1778,7 @@ function exifHandleFile(input) {
   reader.onload = function (e) {
     let res;
     try { res = exifParse(e.target.result); }
-    catch (err) { out.innerHTML = '<div class="alert alert-warning">Не удалось разобрать файл: ' + err.message + '</div>'; return; }
+    catch (err) { out.innerHTML = '<div class="alert alert-warning">Не удалось разобрать файл: ' + aiEscapeHtml(err.message) + '</div>'; return; }
     exifRenderResult(out, res);
   };
   reader.onerror = function () { out.innerHTML = '<div class="alert alert-warning">Не удалось прочитать файл.</div>'; };
@@ -1791,7 +1801,7 @@ function exifTryExample() {
     const res = exifParse(bytes.buffer);
     exifRenderResult(out, res, 'Это демо-файл, встроенный в страницу (не ваше фото) — показан для примера работы разбора.');
   } catch (err) {
-    out.innerHTML = '<div class="alert alert-warning">Не удалось разобрать демо-файл: ' + err.message + '</div>';
+    out.innerHTML = '<div class="alert alert-warning">Не удалось разобрать демо-файл: ' + aiEscapeHtml(err.message) + '</div>';
   }
 }
 

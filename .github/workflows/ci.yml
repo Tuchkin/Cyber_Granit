@@ -26,3 +26,6 @@ jobs:
 
       - name: Model training smoke test
         run: python tests/test_build.py
+
+      - name: Portal security test (CSP, EXIF injection)
+        run: python tests/test_portal_security.py
